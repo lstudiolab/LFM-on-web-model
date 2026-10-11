@@ -125,7 +125,7 @@ def main():
         count, _ = read_existing(target)
         if args.max_docs_per_config and count >= args.max_docs_per_config:
             continue
-        if prior.get("status") == "failed" and not args.retry_failed:
+        if prior.get("status") == "failed" and not args.retry_failed and not target.exists():
             continue
         result = collect(FINEWEB2, config, "train", target, args.max_docs_per_config, config)
         manifest["subsets"][config] = result
