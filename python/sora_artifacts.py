@@ -46,7 +46,7 @@ STATE_NAMES = {
 }
 MODEL_SUFFIXES = {".pt", ".pth", ".npz", ".safetensors"}
 CORPUS_SUFFIXES = {".jsonl", ".txt", ".text", ".tokens.bin"}
-SKIP_PARTS = {".git", ".venv", "venv", "__pycache__", "site-packages", "node_modules"}
+SKIP_PARTS = {".git", ".venv", "venv", "__pycache__", "site-packages", "node_modules", "lora", "adapter", "qwen"}
 
 
 def sha256(path: Path) -> str:
@@ -71,7 +71,7 @@ def discover(search_roots: list[Path], include_corpus: bool) -> list[tuple[Path,
             if not directory.is_dir():
                 continue
             for p in directory.rglob("*"):
-                if not p.is_file() or any(part in SKIP_PARTS for part in p.parts):
+                if not p.is_file() or any(part.lower() in SKIP_PARTS for part in p.parts):
                     continue
                 name = p.name.lower()
                 suffix = p.suffix.lower()
