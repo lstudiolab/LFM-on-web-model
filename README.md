@@ -20,6 +20,10 @@ This repository implements a small language model from random initialization. It
 - **Explicit memory store:** python/memory.py and python/memory_cli.py provide a separate JSON memory store. This symbolic memory is not the same as the model learning its parameters, and memory retrieval is not yet wired into generation.
 - **Tests and CI:** tests cover BPE Unicode and whitespace round-trips, C++/Python tokenizer parity, data split repeatability, cache integrity, model checkpoints, manual attention-gradient finite differences, a real sample-corpus pretraining run, and exact uninterrupted-versus-resumed training. GitHub Actions runs the suite on pushes and pull requests.
 
+## Preserve and publish actual Colab-trained Sora weights
+
+Training scripts alone do not contain the learned weights from a Colab run. To recover actual checkpoints and matching tokenizers/configs from a Colab filesystem and register them as a repository Release asset, follow [COLAB_RECOVER_SORA.md](COLAB_RECOVER_SORA.md). The resulting release asset is linked from [models/sora-artifacts.json](models/sora-artifacts.json). It remains marked unpublished until that procedure is run in a runtime containing a real checkpoint. Raw corpus text is excluded by default and should not be redistributed without checking source licenses.
+
 ## Requirements and quick test
 
 Python 3.10+ and NumPy are required. Run these commands from the repository root.
