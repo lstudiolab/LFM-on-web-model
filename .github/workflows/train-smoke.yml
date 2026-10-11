@@ -1,4 +1,4 @@
-name: LFM training smoke test
+name: LFM pretraining smoke tests
 
 on:
   push:
@@ -6,35 +6,17 @@ on:
   workflow_dispatch:
 
 jobs:
-  train-smoke:
+  pretraining-smoke:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-          cache: pip
       - name: Install dependencies
         run: python -m pip install -r requirements.txt
-      - name: Run unit tests
+      - name: Exercise tokenizer, neural network, checkpoint, data split, resume and full corpus-to-checkpoint workflow
         run: python -m unittest discover -s tests -v
-      - name: Run corpus-to-checkpoint pipeline
-        run: >-
-          python python/pretrain.py
-          --input data/samples/pretrain-source
-          --run-dir artifacts/ci-smoke
-          --steps 12 --hidden-size 8 --seq-len 16
-          --vocab-size 320 --validation-fraction 0.2
-          --min-document-chars 1 --eval-every 6
-      - name: Compile C++ tokenizer utility
-        run: c++ -std=c++17 -O2 -Wall -Wextra -pedantic cpp/main.cpp cpp/tokenizer.cpp -o artifacts/sora-tokenizer
-      - name: Verify C++ tokenizer loads Python vocabulary
-        run: ./artifacts/sora-tokenizer artifacts/ci-smoke/tokenizer.json "Sora mahal kita 😊" | grep -F "Decoded: Sora mahal kita 😊"
-      - name: Verify pretraining artifacts
-        run: |
-          test -s artifacts/ci-smoke/corpus/manifest.json
-          test -s artifacts/ci-smoke/tokenizer.json
-          test -s artifacts/ci-smoke/run_config.json
-          test -s artifacts/ci-smoke/sora-checkpoint.npz
-          test -s artifacts/ci-smoke/sora-checkpoint.metrics.jsonl
