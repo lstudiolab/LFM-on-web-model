@@ -31,6 +31,21 @@ python -m unittest discover -s tests -v
 
 The files under data/samples are tiny synthetic examples to verify code paths. They are not a useful pretraining corpus.
 
+### One-command end-to-end smoke training
+
+To exercise corpus preparation, document-level splitting, BPE training, tokenization, validation, checkpoint saving, and sample generation with one command:
+
+~~~bash
+python python/pretrain.py \
+  --input data/samples/pretrain-source \
+  --run-dir runs/sora-smoke \
+  --steps 30 --hidden-size 16 --seq-len 32 \
+  --vocab-size 320 --validation-fraction 0.2 \
+  --min-document-chars 1 --eval-every 10
+~~~
+
+This verifies that the pipeline works; the sample corpus is too small to produce useful language ability. The same workflow is run automatically by GitHub Actions.
+
 ## Option A: exercise the tokenizer and trainer on the included sample
 
 Learn BPE from the training file only:
