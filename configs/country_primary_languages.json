@@ -1,0 +1,188 @@
+{
+  "format": "lfm-country-primary-languages-v1",
+  "name": "Country primary-language policy (starter)",
+  "policy_version": 1,
+  "note": "This is a starter mapping, not worldwide coverage. Expand and review all countries before claiming global coverage. The project intentionally selects Filipino (Tagalog-based) for the Philippines.",
+  "countries": [
+    {
+      "country_code": "PH",
+      "country": "Philippines",
+      "primary_language": "fil",
+      "display_name": "Filipino (Tagalog-based)"
+    },
+    {
+      "country_code": "US",
+      "country": "United States",
+      "primary_language": "en",
+      "display_name": "English"
+    },
+    {
+      "country_code": "GB",
+      "country": "United Kingdom",
+      "primary_language": "en",
+      "display_name": "English"
+    },
+    {
+      "country_code": "AU",
+      "country": "Australia",
+      "primary_language": "en",
+      "display_name": "English"
+    },
+    {
+      "country_code": "NZ",
+      "country": "New Zealand",
+      "primary_language": "en",
+      "display_name": "English"
+    },
+    {
+      "country_code": "CN",
+      "country": "China",
+      "primary_language": "zh",
+      "display_name": "Mandarin Chinese"
+    },
+    {
+      "country_code": "JP",
+      "country": "Japan",
+      "primary_language": "ja",
+      "display_name": "Japanese"
+    },
+    {
+      "country_code": "KR",
+      "country": "South Korea",
+      "primary_language": "ko",
+      "display_name": "Korean"
+    },
+    {
+      "country_code": "IN",
+      "country": "India",
+      "primary_language": "hi",
+      "display_name": "Hindi"
+    },
+    {
+      "country_code": "ID",
+      "country": "Indonesia",
+      "primary_language": "id",
+      "display_name": "Indonesian"
+    },
+    {
+      "country_code": "VN",
+      "country": "Vietnam",
+      "primary_language": "vi",
+      "display_name": "Vietnamese"
+    },
+    {
+      "country_code": "TH",
+      "country": "Thailand",
+      "primary_language": "th",
+      "display_name": "Thai"
+    },
+    {
+      "country_code": "TR",
+      "country": "Türkiye",
+      "primary_language": "tr",
+      "display_name": "Turkish"
+    },
+    {
+      "country_code": "BR",
+      "country": "Brazil",
+      "primary_language": "pt",
+      "display_name": "Portuguese"
+    },
+    {
+      "country_code": "MX",
+      "country": "Mexico",
+      "primary_language": "es",
+      "display_name": "Spanish"
+    },
+    {
+      "country_code": "ES",
+      "country": "Spain",
+      "primary_language": "es",
+      "display_name": "Spanish"
+    },
+    {
+      "country_code": "FR",
+      "country": "France",
+      "primary_language": "fr",
+      "display_name": "French"
+    },
+    {
+      "country_code": "DE",
+      "country": "Germany",
+      "primary_language": "de",
+      "display_name": "German"
+    },
+    {
+      "country_code": "IT",
+      "country": "Italy",
+      "primary_language": "it",
+      "display_name": "Italian"
+    },
+    {
+      "country_code": "RU",
+      "country": "Russia",
+      "primary_language": "ru",
+      "display_name": "Russian"
+    },
+    {
+      "country_code": "SA",
+      "country": "Saudi Arabia",
+      "primary_language": "ar",
+      "display_name": "Arabic"
+    },
+    {
+      "country_code": "EG",
+      "country": "Egypt",
+      "primary_language": "ar",
+      "display_name": "Arabic"
+    },
+    {
+      "country_code": "IR",
+      "country": "Iran",
+      "primary_language": "fa",
+      "display_name": "Persian"
+    },
+    {
+      "country_code": "PK",
+      "country": "Pakistan",
+      "primary_language": "ur",
+      "display_name": "Urdu"
+    },
+    {
+      "country_code": "BD",
+      "country": "Bangladesh",
+      "primary_language": "bn",
+      "display_name": "Bengali"
+    },
+    {
+      "country_code": "NL",
+      "country": "Netherlands",
+      "primary_language": "nl",
+      "display_name": "Dutch"
+    },
+    {
+      "country_code": "PL",
+      "country": "Poland",
+      "primary_language": "pl",
+      "display_name": "Polish"
+    },
+    {
+      "country_code": "UA",
+      "country": "Ukraine",
+      "primary_language": "uk",
+      "display_name": "Ukrainian"
+    },
+    {
+      "country_code": "GR",
+      "country": "Greece",
+      "primary_language": "el",
+      "display_name": "Greek"
+    },
+    {
+      "country_code": "IL",
+      "country": "Israel",
+      "primary_language": "he",
+      "display_name": "Hebrew"
+    }
+  ]
+}
