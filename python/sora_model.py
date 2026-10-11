@@ -185,6 +185,9 @@ class SoraRNN:
     def save(self, path, metadata=None):
         destination = Path(path)
         destination.parent.mkdir(parents=True, exist_ok=True)
+        # Write into the same directory, then atomically replace the old file.
+        # An interrupted write should not destroy the last valid checkpoint.
+        temporary = destination.with_name(destination.name + ".tmp.npz")
         payload = {f"param_{k}": value for k, value in self.p.items()}
         payload.update({f"adam_m_{k}": value for k, value in self.m.items()})
         payload.update({f"adam_v_{k}": value for k, value in self.v.items()})
@@ -195,7 +198,11 @@ class SoraRNN:
             "step": self.step,
             "metadata": metadata or {},
         }))
-        np.savez_compressed(destination, **payload)
+        try:
+            np.savez_compressed(temporary, **payload)
+            temporary.replace(destination)
+        finally:
+            temporary.unlink(missing_ok=True)
 
     @classmethod
     def load(cls, path):
