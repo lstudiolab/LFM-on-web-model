@@ -6,6 +6,8 @@ This repository is the source of truth for Sora's code and reproducible training
 
 Choose a GPU runtime, then run these cells in order. These commands clone the repository and use its existing from-scratch pipeline. They do not download or load Qwen, LoRA, or other pretrained model weights.
 
+**Use persistent Google Drive storage for the corpus, tokenizer, and checkpoints.** Files under `/content` alone may disappear when the Colab runtime is deleted or reset.
+
 ### Cell 1 — clone the latest repository
 
 ```python
@@ -15,6 +17,19 @@ Choose a GPU runtime, then run these cells in order. These commands clone the re
 !python -m pip install -U pip
 !python -m pip install -r requirements.txt
 !python -m pip install -U datasets huggingface_hub
+```
+
+### Cell 2 — mount persistent storage
+
+Run this once per new Colab runtime. It creates persistent folders outside the temporary notebook filesystem.
+
+```python
+from google.colab import drive
+from pathlib import Path
+drive.mount("/content/drive")
+SORA_STORE = Path("/content/drive/MyDrive/Sora")
+SORA_STORE.mkdir(parents=True, exist_ok=True)
+print("Persistent Sora storage:", SORA_STORE)
 ```
 
 ### Cell 2 — verify the runtime and repository
@@ -34,7 +49,10 @@ subprocess.run(["git", "log", "-1", "--oneline"], check=True)
 This uses the repository's maintained multilingual pipeline, which downloads a bounded sample from available FineWeb-2 language/script subsets plus English FineWeb data, builds a tokenizer and document-level train/validation split, and trains a new model from random weights.
 
 ```python
-!python python/run_multilingual_from_scratch.py --max-configs 30 --english-docs 5000 --steps 1500
+!python python/run_multilingual_from_scratch.py \
+  --data-dir /content/drive/MyDrive/Sora/data/multilingual/fineweb2 \
+  --run-dir /content/drive/MyDrive/Sora/runs/sora-multilingual-from-scratch \
+  --max-configs 30 --english-docs 5000 --steps 1500
 ```
 
 This is a practical first Colab run, not a claim that 1,500 updates make a capable assistant. The first run may take time while data is downloaded and prepared. Review the printed output and the manifest for missing or failed language subsets.
@@ -44,8 +62,8 @@ This is a practical first Colab run, not a claim that 1,500 updates make a capab
 ```python
 import json, pathlib, torch
 root = pathlib.Path("/content/LFM-on-web-model")
-manifest = root / "data/multilingual/fineweb2/manifest.json"
-run = root / "runs/sora-multilingual-from-scratch"
+manifest = pathlib.Path("/content/drive/MyDrive/Sora/data/multilingual/fineweb2/manifest.json")
+run = pathlib.Path("/content/drive/MyDrive/Sora/runs/sora-multilingual-from-scratch")
 print("Manifest exists:", manifest.exists())
 if manifest.exists():
     data = json.loads(manifest.read_text())
@@ -56,10 +74,13 @@ for p in sorted(run.glob("*")):
 
 ### Continue the same run
 
-If Colab disconnects, clone the repository again, install the same requirements, then restore the generated `runs/sora-multilingual-from-scratch` directory (including its checkpoint, tokenizer, train/validation split, and trainer cache/state) from persistent storage before running. The runner now preserves those existing files when `--resume` is used:
+If Colab disconnects, clone the repository again, reinstall requirements, mount Google Drive again, and point to the same persistent directories. The runner reuses the existing checkpoint, tokenizer and train/validation split without downloading data or retraining the tokenizer when `--resume` is used:
 
 ```python
-!python python/run_multilingual_from_scratch.py --skip-download --resume --steps 3000
+!python python/run_multilingual_from_scratch.py \
+  --data-dir /content/drive/MyDrive/Sora/data/multilingual/fineweb2 \
+  --run-dir /content/drive/MyDrive/Sora/runs/sora-multilingual-from-scratch \
+  --skip-download --resume --steps 3000
 ```
 
 **Important:** `--resume` is only valid when the same checkpoint, corpus, tokenizer, and architecture are present. Do not use it with a newly generated tokenizer or changed corpus. Keep a backup of the run directory before continuing.
