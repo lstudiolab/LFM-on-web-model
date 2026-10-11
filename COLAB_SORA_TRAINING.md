@@ -32,7 +32,7 @@ SORA_STORE.mkdir(parents=True, exist_ok=True)
 print("Persistent Sora storage:", SORA_STORE)
 ```
 
-### Cell 2 — verify the runtime and repository
+### Cell 3 — verify the runtime and repository
 
 ```python
 import torch, pathlib, subprocess
@@ -44,7 +44,7 @@ if torch.cuda.is_available():
 subprocess.run(["git", "log", "-1", "--oneline"], check=True)
 ```
 
-### Cell 3 — build a multilingual corpus and train Sora from random initialization
+### Cell 4 — build a multilingual corpus and train Sora from random initialization
 
 This uses the repository's maintained multilingual pipeline, which downloads a bounded sample from available FineWeb-2 language/script subsets plus English FineWeb data, builds a tokenizer and document-level train/validation split, and trains a new model from random weights.
 
@@ -57,7 +57,7 @@ This uses the repository's maintained multilingual pipeline, which downloads a b
 
 This is a practical first Colab run, not a claim that 1,500 updates make a capable assistant. The first run may take time while data is downloaded and prepared. Review the printed output and the manifest for missing or failed language subsets.
 
-### Cell 4 — inspect the actual outputs and parameter count
+### Cell 5 — inspect the actual outputs and parameter count
 
 ```python
 import json, pathlib, torch
