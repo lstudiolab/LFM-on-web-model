@@ -50,7 +50,9 @@ def main():
     ap.add_argument("--seq-len", type=int, default=128)
     ap.add_argument("--learning-rate", type=float, default=0.001)
     ap.add_argument("--checkpoint", type=Path, default=Path("sora-transformer.npz"))
-    ap.add_argument("--resume", action="store_true")
+    ap.add_argument("--resume", action="store_true", help="resume an interrupted run with identical data and settings")
+    ap.add_argument("--initialize-from", type=Path,
+                    help="initialize weights from a previous checkpoint for a new training stage; resets optimizer state")
     ap.add_argument("--eval-every", type=int, default=100)
     ap.add_argument("--eval-batches", type=int, default=4)
     ap.add_argument("--seed", type=int, default=7)
@@ -63,6 +65,8 @@ def main():
 
     if args.steps < 1:
         ap.error("--steps must be positive")
+    if args.resume and args.initialize_from:
+        ap.error("--resume and --initialize-from cannot be used together")
     if args.d_model < 4 or args.heads < 1 or args.d_model % args.heads != 0:
         ap.error("--d-model must be at least 4 and divisible by a positive --heads value")
     if args.layers < 1:
@@ -81,6 +85,8 @@ def main():
         ap.error(f"Validation corpus not found: {args.validation_corpus}")
     if args.tokenizer and not args.tokenizer.is_file():
         ap.error(f"Tokenizer not found: {args.tokenizer}")
+    if args.initialize_from and not args.initialize_from.is_file():
+        ap.error(f"Initial checkpoint not found: {args.initialize_from}")
 
     tokenizer = ByteBPETokenizer.load(args.tokenizer) if args.tokenizer else None
     vocab_size = tokenizer.vocab_size if tokenizer else 256
@@ -113,6 +119,7 @@ def main():
         log_path.write_text("", encoding="utf-8")
 
     saved_rng_state = None
+    initial_checkpoint_hash = None
     if args.resume:
         if not args.checkpoint.is_file():
             ap.error(f"Cannot resume: checkpoint not found: {args.checkpoint}")
@@ -147,6 +154,37 @@ def main():
             ap.error("Seed differs from saved run configuration.")
         saved_rng_state = previous.get("rng_state")
         best_validation = float(previous.get("best_validation_loss", float("inf")))
+    elif args.initialize_from:
+        model = SoraTransformer.load(args.initialize_from)
+        expected = {
+            "vocab_size": vocab_size,
+            "d_model": args.d_model,
+            "n_heads": args.heads,
+            "n_layers": args.layers,
+            "max_seq_len": args.seq_len,
+        }
+        actual = {
+            "vocab_size": model.vocab_size,
+            "d_model": model.d_model,
+            "n_heads": model.n_heads,
+            "n_layers": model.n_layers,
+            "max_seq_len": model.max_seq_len,
+        }
+        for key, value in expected.items():
+            if actual[key] != value:
+                ap.error(f"Initial checkpoint {key} ({actual[key]}) does not match requested value ({value})")
+        previous = getattr(model, "metadata", {})
+        if previous.get("tokenizer_sha256") != tokenizer_hash:
+            ap.error("Initial checkpoint tokenizer fingerprint does not match this run.")
+        # Fine-tuning is a new stage, so preserve weights but reset Adam moments,
+        # step count, and old run metadata. This is not a continuation/resume.
+        model.m = {key: np.zeros_like(value) for key, value in model.p.items()}
+        model.v = {key: np.zeros_like(value) for key, value in model.p.items()}
+        model.step = 0
+        model.metadata = {}
+        initial_checkpoint_hash = sha256_file(args.initialize_from)
+        best_validation = float("inf")
+        print(f"Initialized weights from {args.initialize_from}; optimizer state reset.")
     else:
         model = SoraTransformer(
             vocab_size=vocab_size, d_model=args.d_model, n_heads=args.heads,
@@ -186,6 +224,7 @@ def main():
             best_validation = validation_loss
         metadata = {
             "training_corpus": args.corpus.name,
+            "initial_checkpoint_sha256": initial_checkpoint_hash,
             "training_corpus_sha256": training_hash,
             "validation_corpus": args.validation_corpus.name if args.validation_corpus else None,
             "validation_corpus_sha256": validation_hash,
