@@ -220,6 +220,7 @@ def publish(args) -> None:
         raise RuntimeError(f"Uploading release asset failed (HTTP {exc.code}): {detail[:1200]}") from exc
     manifest = {
         "format": "sora-release-artifact-pointer-v1",
+        "status": "published",
         "repository": repo,
         "release_tag": args.tag,
         "release_url": release.get("html_url"),
