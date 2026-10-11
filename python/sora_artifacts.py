@@ -71,7 +71,9 @@ def discover(search_roots: list[Path], include_corpus: bool) -> list[tuple[Path,
             if not directory.is_dir():
                 continue
             for p in directory.rglob("*"):
-                if not p.is_file() or any(part.lower() in SKIP_PARTS for part in p.parts):
+                if (not p.is_file()
+                        or any(part.lower() in SKIP_PARTS for part in p.parts)
+                        or any(term in p.name.lower() for term in ("lora", "adapter", "qwen"))):
                     continue
                 name = p.name.lower()
                 suffix = p.suffix.lower()
