@@ -109,3 +109,34 @@ class SoraTorchTransformer(nn.Module):
             "max_seq_len": self.max_seq_len,
             "dropout": self.dropout_rate,
         }
+
+
+
+TORCH_CHECKPOINT_FORMAT = "lfm-sora-torch-v1"
+
+
+def save_checkpoint(path, model, optimizer, metadata: dict, training_state: dict | None = None):
+    """Persist weights, optimizer state, configuration, and provenance metadata."""
+    payload = {
+        "format": TORCH_CHECKPOINT_FORMAT,
+        "model_config": model.config(),
+        "model_state": model.state_dict(),
+        "optimizer_state": optimizer.state_dict() if optimizer is not None else None,
+        "metadata": metadata,
+        "training_state": training_state or {},
+    }
+    path = __import__("pathlib").Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_suffix(path.suffix + ".tmp")
+    torch.save(payload, temporary)
+    temporary.replace(path)
+
+
+def load_checkpoint(path, map_location="cpu") -> dict:
+    """Load a checkpoint written by this project; never loads pretrained weights implicitly."""
+    payload = torch.load(path, map_location=map_location, weights_only=False)
+    if not isinstance(payload, dict) or payload.get("format") != TORCH_CHECKPOINT_FORMAT:
+        raise ValueError("Unsupported Sora PyTorch checkpoint format")
+    if not isinstance(payload.get("model_config"), dict) or not isinstance(payload.get("model_state"), dict):
+        raise ValueError("Checkpoint is missing model configuration or weights")
+    return payload
