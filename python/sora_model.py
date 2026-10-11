@@ -29,12 +29,12 @@ class SoraRNN:
         self.vocab_size = int(vocab_size)
         h, v = self.hidden_size, self.vocab_size
         self.p = {
-            "E": rng.normal(0, 0.03, (v, h)),
-            "Wx": rng.normal(0, 1 / np.sqrt(h), (h, h)),
-            "Wh": rng.normal(0, 1 / np.sqrt(h), (h, h)),
-            "bh": np.zeros((1, h)),
-            "Wy": rng.normal(0, 1 / np.sqrt(h), (h, v)),
-            "by": np.zeros((1, v)),
+            "E": rng.normal(0, 0.03, (v, h)).astype(np.float32),
+            "Wx": rng.normal(0, 1 / np.sqrt(h), (h, h)).astype(np.float32),
+            "Wh": rng.normal(0, 1 / np.sqrt(h), (h, h)).astype(np.float32),
+            "bh": np.zeros((1, h), dtype=np.float32),
+            "Wy": rng.normal(0, 1 / np.sqrt(h), (h, v)).astype(np.float32),
+            "by": np.zeros((1, v), dtype=np.float32),
         }
         self.m = {k: np.zeros_like(value) for k, value in self.p.items()}
         self.v = {k: np.zeros_like(value) for k, value in self.p.items()}
@@ -64,13 +64,12 @@ class SoraRNN:
     @staticmethod
     def _cross_entropy(logits: np.ndarray, target: int) -> float:
         shifted = logits - np.max(logits)
-        log_norm = np.log(np.exp(shifted).sum())
-        return float(log_norm - shifted[0, target])
+        return float(np.log(np.exp(shifted).sum()) - shifted[0, target])
 
     def sequence_loss(self, ids: np.ndarray) -> float:
         """Evaluate next-token cross-entropy without constructing gradients."""
         ids = self._validate_ids(ids)
-        hidden = np.zeros((1, self.hidden_size))
+        hidden = np.zeros((1, self.hidden_size), dtype=np.float32)
         total = 0.0
         for t in range(len(ids) - 1):
             hidden = self._step_hidden(int(ids[t]), hidden)
@@ -80,7 +79,7 @@ class SoraRNN:
     def loss_and_gradients(self, ids: np.ndarray):
         ids = self._validate_ids(ids)
         x, y = ids[:-1], ids[1:]
-        hs = [np.zeros((1, self.hidden_size))]
+        hs = [np.zeros((1, self.hidden_size), dtype=np.float32)]
         probs = []
         loss = 0.0
 
@@ -90,12 +89,12 @@ class SoraRNN:
             logits -= np.max(logits)
             probability = np.exp(logits)
             probability /= probability.sum()
-            loss -= np.log(probability[0, int(y[t])] + 1e-12)
+            loss -= np.log(float(probability[0, int(y[t])]) + 1e-12)
             hs.append(hidden)
             probs.append(probability)
 
         grads = {k: np.zeros_like(value) for k, value in self.p.items()}
-        dh_next = np.zeros((1, self.hidden_size))
+        dh_next = np.zeros((1, self.hidden_size), dtype=np.float32)
         for t in reversed(range(len(x))):
             dy = probs[t].copy()
             dy[0, int(y[t])] -= 1.0
@@ -154,7 +153,7 @@ class SoraRNN:
         if min(ids) < 0 or max(ids) >= self.vocab_size:
             raise ValueError("Prompt token ID outside model vocabulary")
 
-        hidden = np.zeros((1, self.hidden_size))
+        hidden = np.zeros((1, self.hidden_size), dtype=np.float32)
         for token_id in ids:
             hidden = self._step_hidden(token_id, hidden)
 
@@ -202,7 +201,6 @@ class SoraRNN:
     def load(cls, path):
         with np.load(path, allow_pickle=False) as data:
             meta = json.loads(str(data["meta"].item()))
-            # Read old byte-only checkpoints as well.
             if meta.get("format") not in {"lfm-sora-rnn-v1", CHECKPOINT_FORMAT}:
                 raise ValueError("Unsupported checkpoint format")
             model = cls(
@@ -218,7 +216,7 @@ class SoraRNN:
                     value = data[name].copy()
                     if value.shape != target[key].shape:
                         raise ValueError(f"Invalid shape for checkpoint array {name}")
-                    target[key] = value
+                    target[key] = value.astype(np.float32, copy=False)
             model.step = int(meta.get("step", 0))
             if model.step < 0:
                 raise ValueError("Invalid checkpoint optimizer step")
