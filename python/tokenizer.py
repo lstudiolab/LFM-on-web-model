@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import re
 from pathlib import Path
 
 from train_bpe import BASE_VOCAB_SIZE, BPE_FORMAT, split_pieces
@@ -74,7 +73,6 @@ class ByteBPETokenizer:
                     index += 1
             ids = result
         encoded = tuple(ids)
-        # Bound cache growth for long-running corpus tokenization.
         if len(self._piece_cache) < 100_000:
             self._piece_cache[raw] = encoded
         return encoded
@@ -87,20 +85,18 @@ class ByteBPETokenizer:
 
     def decode(self, ids, errors="replace") -> str:
         raw = bytearray()
-
-        def expand(token_id):
-            token_id = int(token_id)
-            if 0 <= token_id < BASE_VOCAB_SIZE:
-                raw.append(token_id)
-                return
-            pair = self.expansions.get(token_id)
-            if pair is None:
-                raise ValueError(f"Unknown token ID: {token_id}")
-            expand(pair[0])
-            expand(pair[1])
-
         for token_id in ids:
-            expand(token_id)
+            stack = [int(token_id)]
+            while stack:
+                current = stack.pop()
+                if 0 <= current < BASE_VOCAB_SIZE:
+                    raw.append(current)
+                    continue
+                pair = self.expansions.get(current)
+                if pair is None:
+                    raise ValueError(f"Unknown token ID: {current}")
+                stack.append(pair[1])
+                stack.append(pair[0])
         return raw.decode("utf-8", errors=errors)
 
     @property
