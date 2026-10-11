@@ -168,6 +168,26 @@ c++ -std=c++17 -O2 cpp/main.cpp cpp/tokenizer.cpp -o sora-tokenizer
 
 Unicode word-boundary handling in the demonstration C++ utility is intentionally lightweight; Python's tokenizer is the reference for training and generation.
 
+## Multilingual training by country-primary language
+
+The multilingual preparation path is in `python/prepare_multilingual_corpus.py`, with a starter policy at `configs/country_primary_languages.json`. The Philippines entry selects **Filipino (Tagalog-based)** only, as requested. The policy currently covers only a starter set of countries; it is **not yet a complete worldwide country/language mapping**.
+
+Organize reviewed, licensed source text by language code under `data/multilingual/raw/<language-code>/`, for example `data/multilingual/raw/fil/` for Filipino. Then run:
+
+```bash
+python python/prepare_multilingual_corpus.py
+```
+
+Inspect `data/multilingual/selected/manifest.json` for missing languages, source hashes, and per-language character counts. The builder does not download or invent training examples and does not automatically verify that a file is in its labelled language. It reports missing source data rather than pretending that language is covered.
+
+After completing and reviewing the policy and adding enough data for every selected language, train from the combined language-specific files:
+
+```bash
+python python/pretrain.py --input data/multilingual/selected --run-dir runs/sora-multilingual --steps 10000 --hidden-size 128 --heads 4 --layers 2 --seq-len 128 --vocab-size 4096
+```
+
+This command has **not** been run here: no real multilingual corpus or training compute was supplied. The existing NumPy Transformer is an experimental, CPU-oriented implementation; meaningful multilingual capability requires substantial clean text, a complete and reviewed language policy, adequate compute, and held-out evaluation for each language. Many countries use multiple languages, so the one-language-per-country rule is an explicit simplification, not a claim that other languages are not used.
+
 ## What this does—and does not—mean
 
 Pretraining minimizes next-token prediction loss on the supplied text. Lower validation loss means the model improved on that evaluation split; it does not prove reasoning, factual reliability, multilingual competence, or general intelligence. No model is pretrained merely by committing code or downloading the repository. You must provide a corpus, inspect the manifest, execute training, and evaluate the resulting checkpoint.
