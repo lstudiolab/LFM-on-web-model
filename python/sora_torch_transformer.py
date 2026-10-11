@@ -1,6 +1,7 @@
 """PyTorch causal Transformer for scalable training from random initialization."""
 from __future__ import annotations
 
+from pathlib import Path
 import torch
 from torch import nn
 from torch.nn import functional as F
@@ -125,7 +126,7 @@ def save_checkpoint(path, model, optimizer, metadata: dict, training_state: dict
         "metadata": metadata,
         "training_state": training_state or {},
     }
-    path = __import__("pathlib").Path(path)
+    path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_suffix(path.suffix + ".tmp")
     torch.save(payload, temporary)
