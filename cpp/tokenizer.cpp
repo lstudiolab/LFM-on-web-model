@@ -111,11 +111,23 @@ std::vector<std::string> split_pieces(const std::string& text) {
     std::vector<std::string> pieces;
     std::size_t i = 0;
     while (i < text.size()) {
+        // Python's training tokenizer makes each CR/LF line break a boundary,
+        // separate from adjacent horizontal whitespace.
+        if (text[i] == '\r' || text[i] == '\n') {
+            const auto begin = i;
+            if (text[i] == '\r' && i + 1 < text.size() && text[i + 1] == '\n') i += 2;
+            else ++i;
+            pieces.push_back(text.substr(begin, i - begin));
+            continue;
+        }
+
         std::size_t width = 1;
-        auto cp = codepoint_at(text, i, width);
-        int cat = unicode_space(cp) ? 0 : (unicode_word(cp) ? 1 : 2);
-        auto begin = i; i += width;
+        const auto cp = codepoint_at(text, i, width);
+        const int cat = unicode_space(cp) ? 0 : (unicode_word(cp) ? 1 : 2);
+        const auto begin = i;
+        i += width;
         while (i < text.size()) {
+            if (text[i] == '\r' || text[i] == '\n') break;
             std::size_t next_width = 1;
             const auto next = codepoint_at(text, i, next_width);
             const int next_cat = unicode_space(next) ? 0 : (unicode_word(next) ? 1 : 2);
@@ -174,10 +186,20 @@ std::vector<std::uint32_t> Tokenizer::encode(const std::string& text) const {
     return output;
 }
 void Tokenizer::expand(std::uint32_t id, std::string& out) const {
-    if (id < 256) { out.push_back(static_cast<char>(static_cast<unsigned char>(id))); return; }
-    const auto it = expansions_.find(id);
-    if (it == expansions_.end()) throw std::invalid_argument("Unknown token ID: " + std::to_string(id));
-    expand(it->second.first, out); expand(it->second.second, out);
+    std::vector<std::uint32_t> pending{id};
+    while (!pending.empty()) {
+        const auto current = pending.back();
+        pending.pop_back();
+        if (current < 256) {
+            out.push_back(static_cast<char>(static_cast<unsigned char>(current)));
+            continue;
+        }
+        const auto it = expansions_.find(current);
+        if (it == expansions_.end())
+            throw std::invalid_argument("Unknown token ID: " + std::to_string(current));
+        pending.push_back(it->second.second);
+        pending.push_back(it->second.first);
+    }
 }
 std::string Tokenizer::decode(const std::vector<std::uint32_t>& ids) const {
     std::string out;
