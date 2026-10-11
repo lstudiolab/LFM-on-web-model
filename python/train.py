@@ -104,6 +104,7 @@ def main():
     if not args.resume:
         log_path.write_text("", encoding="utf-8")
 
+    saved_rng_state = None
     if args.resume:
         if not args.checkpoint.is_file():
             ap.error(f"Cannot resume: checkpoint not found: {args.checkpoint}")
@@ -123,12 +124,22 @@ def main():
             ap.error("Sequence length differs from the saved run configuration.")
         if previous.get("learning_rate") not in (None, args.learning_rate):
             ap.error("Learning rate differs from the saved run configuration.")
+        if previous.get("seed") not in (None, args.seed):
+            ap.error("Seed differs from the saved run configuration.")
+        saved_rng_state = previous.get("rng_state")
         best_validation = float(previous.get("best_validation_loss", float("inf")))
     else:
         model = SoraRNN(args.hidden_size, args.seed, vocab_size=vocab_size)
         best_validation = float("inf")
 
+    # New checkpoints preserve the exact sampling position across a resume.
+    # Older checkpoints have no RNG state; maintain a deterministic fallback.
     rng = np.random.default_rng(args.seed + model.step)
+    if saved_rng_state is not None:
+        try:
+            rng.bit_generator.state = saved_rng_state
+        except (TypeError, ValueError, KeyError) as exc:
+            ap.error(f"Checkpoint contains an invalid RNG state: {exc}")
     print(f"Training tokens: {len(train):,} | validation tokens: {len(valid):,}")
     print(f"Model: manual byte/BPE RNN | vocab: {vocab_size:,} | hidden: {model.hidden_size:,}")
     print(f"Parameters: {model.parameter_count:,} | trainable arrays: {len(model.p)}")
@@ -162,6 +173,7 @@ def main():
             "seed": args.seed,
             "seq_len": args.seq_len,
             "learning_rate": args.learning_rate,
+            "rng_state": rng.bit_generator.state,
             "run_step": global_step,
         }
         model.save(args.checkpoint, metadata)
