@@ -1,4 +1,6 @@
 import json
+import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -78,6 +80,38 @@ class TestPretrainingPipeline(unittest.TestCase):
             _, manifest = tokenize_file(source, output, vocab)
             actual = np.fromfile(output, dtype=np.dtype(manifest["dtype"])).astype(int).tolist()
             self.assertEqual(actual, tokenizer.encode(text))
+
+
+    def test_cpp_tokenizer_matches_python_for_unicode_text(self):
+        compiler = shutil.which("c++")
+        if compiler is None:
+            self.skipTest("C++ compiler is not installed")
+        text = "Sora mahal kita. 😊"
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            vocab = root / "tokenizer.json"
+            executable = root / "sora-tokenizer"
+            vocab.write_text(json.dumps(train_bpe((text + "\n") * 20, 300)),
+                             encoding="utf-8")
+            compile_result = subprocess.run(
+                [compiler, "-std=c++17", "-O2",
+                 str(ROOT / "cpp" / "main.cpp"),
+                 str(ROOT / "cpp" / "tokenizer.cpp"),
+                 "-o", str(executable)],
+                capture_output=True, text=True, timeout=45,
+            )
+            self.assertEqual(compile_result.returncode, 0, compile_result.stderr)
+            run = subprocess.run(
+                [str(executable), str(vocab), *text.split(" ")],
+                capture_output=True, text=True, timeout=15,
+            )
+            self.assertEqual(run.returncode, 0, run.stderr)
+            match = re.search(r"IDs:(.*?)\nDecoded:", run.stdout, flags=re.DOTALL)
+            self.assertIsNotNone(match, run.stdout)
+            cpp_ids = [int(token) for token in match.group(1).split()]
+            tokenizer = ByteBPETokenizer.load(vocab)
+            self.assertEqual(cpp_ids, tokenizer.encode(text))
+            self.assertIn(text, run.stdout)
 
     def test_document_split_is_reproducible_and_disjoint(self):
         with tempfile.TemporaryDirectory() as directory:
