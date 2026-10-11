@@ -250,6 +250,76 @@ def publish(args) -> None:
     print(f"Manifest: https://github.com/{repo}/blob/{args.branch}/{MANIFEST_PATH}")
 
 
+def download_file(url: str, destination: Path) -> None:
+    request = urllib.request.Request(url, headers={"User-Agent": "Sora-Artifact-Restorer"})
+    with urllib.request.urlopen(request, timeout=120) as response, destination.open("wb") as sink:
+        while True:
+            chunk = response.read(1024 * 1024)
+            if not chunk:
+                break
+            sink.write(chunk)
+
+
+def restore(args) -> None:
+    manifest_url = args.manifest_url
+    request = urllib.request.Request(manifest_url, headers={"User-Agent": "Sora-Artifact-Restorer"})
+    try:
+        with urllib.request.urlopen(request, timeout=60) as response:
+            pointer = json.loads(response.read().decode("utf-8"))
+    except (urllib.error.URLError, json.JSONDecodeError) as exc:
+        raise SystemExit(f"Could not read Sora artifact manifest {manifest_url}: {exc}") from exc
+    asset_url = pointer.get("asset_url")
+    expected_bundle_hash = pointer.get("asset_sha256")
+    if not asset_url or not expected_bundle_hash or pointer.get("status") == "not_yet_published":
+        raise SystemExit("No trained checkpoint is registered yet. Publish one from a Colab runtime using COLAB_RECOVER_SORA.md.")
+    target = Path(args.output_dir).resolve()
+    target.mkdir(parents=True, exist_ok=True)
+    bundle_path = target / (pointer.get("asset_name") or "sora-state-bundle.tar.gz")
+    print(f"Downloading artifact bundle: {asset_url}")
+    download_file(asset_url, bundle_path)
+    actual_bundle_hash = sha256(bundle_path)
+    if actual_bundle_hash != expected_bundle_hash:
+        bundle_path.unlink(missing_ok=True)
+        raise SystemExit(f"Bundle hash mismatch: expected {expected_bundle_hash}, got {actual_bundle_hash}")
+    extracted_root = target / "sora-artifacts"
+    extracted_root.mkdir(parents=True, exist_ok=True)
+    try:
+        with tarfile.open(bundle_path, "r:gz") as archive:
+            bundle_manifest_member = archive.getmember("SORA_BUNDLE_MANIFEST.json")
+            bundled_manifest = json.load(archive.extractfile(bundle_manifest_member))
+            expected_files = {item["path"]: item for item in bundled_manifest.get("files", [])}
+            for member in archive.getmembers():
+                if member.name == "SORA_BUNDLE_MANIFEST.json":
+                    continue
+                path = PurePosixPath(member.name)
+                if path.is_absolute() or ".." in path.parts or not member.isfile():
+                    raise RuntimeError(f"Unsafe or unexpected archive entry: {member.name}")
+                item = expected_files.get(member.name)
+                if item is None:
+                    raise RuntimeError(f"Archive entry missing from checksummed manifest: {member.name}")
+                destination = extracted_root.joinpath(*path.parts)
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                source = archive.extractfile(member)
+                if source is None:
+                    raise RuntimeError(f"Could not read archive entry: {member.name}")
+                with source, destination.open("wb") as sink:
+                    import shutil
+                    shutil.copyfileobj(source, sink)
+                if destination.stat().st_size != int(item["size_bytes"]) or sha256(destination) != item["sha256"]:
+                    raise RuntimeError(f"File hash/size check failed: {member.name}")
+            missing = set(expected_files) - {
+                m.name for m in archive.getmembers() if m.name != "SORA_BUNDLE_MANIFEST.json"
+            }
+            if missing:
+                raise RuntimeError("Archive is missing manifest entries: " + ", ".join(sorted(missing)))
+    except Exception:
+        bundle_path.unlink(missing_ok=True)
+        raise
+    print(f"Verified and restored Sora files to: {extracted_root}")
+    print("Checkpoints:", ", ".join(bundled_manifest.get("checkpoint_files", [])) or "(none)")
+    print("Keep each checkpoint with its matching tokenizer and configuration. Do not assume old and new model architectures are interchangeable.")
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
@@ -269,6 +339,11 @@ def main():
     pub.add_argument("--token-env", default="GITHUB_TOKEN")
     pub.add_argument("--branch", default="main")
     pub.set_defaults(func=publish)
+    get = sub.add_parser("restore", help="download the registered public release bundle and verify/extract its files")
+    get.add_argument("--manifest-url",
+                     default="https://raw.githubusercontent.com/lstudiolab/LFM-on-web-model/main/models/sora-artifacts.json")
+    get.add_argument("--output-dir", default="artifacts/registered-sora")
+    get.set_defaults(func=restore)
     args = parser.parse_args()
     args.func(args)
 
