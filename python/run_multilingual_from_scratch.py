@@ -139,29 +139,38 @@ def main():
             "--seed", str(args.seed),
         ])
 
-    samples = load_samples(args.data_dir, args.min_chars)
-    if not samples:
-        parser.error(f"No usable JSONL documents found in {args.data_dir}; run with internet enabled and inspect the downloader manifest.")
-    split_manifest = balanced_split(samples, args.run_dir, args.seed, args.validation_fraction)
-    if split_manifest["language_script_pairs_with_documents"] < 2:
-        print("WARNING: this corpus contains fewer than two language/script pairs.", flush=True)
-
     train_text = args.run_dir / "corpus" / "train.txt"
     valid_text = args.run_dir / "corpus" / "validation.txt"
     tokenizer_path = args.run_dir / "tokenizer.json"
     checkpoint = args.run_dir / "sora-multilingual.pt"
-    run([
-        sys.executable, str(Path(__file__).with_name("train_bpe.py")), str(train_text), str(tokenizer_path),
-        "--vocab-size", str(args.vocab_size), "--max-lines", str(args.tokenizer_lines), "--seed", str(args.seed)
-    ])
+
+    if args.resume:
+        # A resume must reuse the exact corpus split and tokenizer from the saved run.
+        # Rebuilding either one can invalidate the trainer's data/tokenizer fingerprints.
+        required = [train_text, valid_text, tokenizer_path, checkpoint]
+        missing = [str(path) for path in required if not path.is_file()]
+        if missing:
+            parser.error("Cannot resume; missing artifacts: " + ", ".join(missing))
+        print("Resuming with the existing train split, validation split, tokenizer, and checkpoint.")
+        print("Dataset downloading and tokenizer training are skipped for a resume.")
+    else:
+        samples = load_samples(args.data_dir, args.min_chars)
+        if not samples:
+            parser.error(f"No usable JSONL documents found in {args.data_dir}; run with internet enabled and inspect the downloader manifest.")
+        split_manifest = balanced_split(samples, args.run_dir, args.seed, args.validation_fraction)
+        if split_manifest["language_script_pairs_with_documents"] < 2:
+            print("WARNING: this corpus contains fewer than two language/script pairs.", flush=True)
+        run([
+            sys.executable, str(Path(__file__).with_name("train_bpe.py")), str(train_text), str(tokenizer_path),
+            "--vocab-size", str(args.vocab_size), "--max-lines", str(args.tokenizer_lines), "--seed", str(args.seed)
+        ])
+
     if args.prepare_only:
         print("PREPARED ONLY: no model training started.")
         print(f"Training corpus: {train_text}")
         print(f"Validation corpus: {valid_text}")
         print(f"Tokenizer: {tokenizer_path}")
         return 0
-    if args.resume and not checkpoint.is_file():
-        parser.error(f"Cannot resume; checkpoint does not exist: {checkpoint}")
 
     command = [
         sys.executable, str(Path(__file__).with_name("train_torch_transformer.py")), str(train_text),
