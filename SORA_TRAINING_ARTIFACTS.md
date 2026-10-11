@@ -32,7 +32,11 @@ sora-artifacts/
     metrics.jsonl
 ```
 
-Use Git LFS or a dedicated model/artifact store for large binary files. Do not commit hundreds of megabytes of raw corpus text or model checkpoints to ordinary Git history. Keep dataset source/license metadata and the code that reconstructs the corpus in this repository.
+Use a GitHub Release attached to this repository (the helper in `python/sora_artifacts.py` creates the release and records its URL in `models/sora-artifacts.json`) or a dedicated model/artifact store for binary files. Do not commit hundreds of megabytes of raw corpus text or model checkpoints to ordinary Git history. Keep dataset source/license metadata and the code that reconstructs the corpus in this repository. The release manifest remains marked `not_yet_published` until a Colab runtime containing a real checkpoint uploads it.
+
+## Recover files from a Colab runtime
+
+Follow [COLAB_RECOVER_SORA.md](COLAB_RECOVER_SORA.md). That procedure searches known output paths, checksums discovered files, and publishes a real checkpoint/tokenizer/config bundle as a repository release asset. It also updates [models/sora-artifacts.json](models/sora-artifacts.json). The procedure deliberately excludes LoRA adapters and Qwen artifacts.
 
 ## Re-create training data on a fresh Colab
 
