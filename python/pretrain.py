@@ -20,7 +20,10 @@ def main():
                         help="UTF-8 corpus files/folders (train corpus must be legally usable)")
     parser.add_argument("--run-dir", type=Path, required=True)
     parser.add_argument("--steps", type=int, default=1000)
-    parser.add_argument("--hidden-size", type=int, default=128)
+    parser.add_argument("--hidden-size", type=int, default=128,
+                        help="Transformer model width (must be divisible by --heads)")
+    parser.add_argument("--heads", type=int, default=4)
+    parser.add_argument("--layers", type=int, default=2)
     parser.add_argument("--seq-len", type=int, default=128)
     parser.add_argument("--learning-rate", type=float, default=0.001)
     parser.add_argument("--vocab-size", type=int, default=1024)
@@ -34,8 +37,12 @@ def main():
     parser.add_argument("--resume", action="store_true")
     args = parser.parse_args()
 
-    if args.steps < 1 or args.hidden_size < 1 or args.seq_len < 2:
-        parser.error("steps and hidden size must be positive; seq-len must be at least 2")
+    if args.steps < 1 or args.hidden_size < 4 or args.seq_len < 2:
+        parser.error("steps must be positive, hidden-size must be at least 4, and seq-len must be at least 2")
+    if args.heads < 1 or args.hidden_size % args.heads != 0:
+        parser.error("heads must be positive and divide hidden-size evenly")
+    if args.layers < 1:
+        parser.error("layers must be positive")
     if args.vocab_size < 256 or args.vocab_size > 1_000_000:
         parser.error("vocab-size must be between 256 and 1000000")
     if args.learning_rate <= 0 or args.eval_every < 1:
@@ -85,12 +92,17 @@ def main():
 
     print("[4/5] Estimating model size and writing run configuration.")
     # Count parameters algebraically so preflight does not allocate model weights.
-    h, v = args.hidden_size, tokenizer.vocab_size
-    parameter_count = 2 * v * h + 2 * h * h + h + v
+    d, v = args.hidden_size, tokenizer.vocab_size
+    parameter_count = (
+        v * d + args.seq_len * d + v + 2 * d
+        + args.layers * (12 * d * d + 13 * d)
+    )
     config = {
-        "format": "lfm-pretraining-run-v1",
-        "model": "manual-gradient byte/BPE RNN (experimental baseline)",
-        "hidden_size": h,
+        "format": "lfm-pretraining-run-v2",
+        "model": "manual-gradient causal Transformer",
+        "d_model": d,
+        "layers": args.layers,
+        "heads": args.heads,
         "vocab_size": v,
         "parameters": parameter_count,
         "approx_parameter_plus_adam_state_bytes_fp32": parameter_count * 12,
@@ -102,7 +114,7 @@ def main():
         "train_tokens": train_tokens["token_count"],
         "validation_tokens": valid_tokens["token_count"],
         "training_manifest": str(corpus_dir / "manifest.json"),
-        "warning": "This is a small RNN baseline, not a modern or production-scale LLM."
+        "warning": "This is a compact CPU-oriented Transformer implementation; do not treat a smoke run as a capable foundation model."
     }
     (run_dir / "run_config.json").write_text(
         json.dumps(config, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
@@ -117,7 +129,7 @@ def main():
         return
 
     checkpoint = run_dir / "sora-checkpoint.npz"
-    train_script = Path(__file__).with_name("train.py")
+    train_script = Path(__file__).with_name("train_transformer.py")
     command = [
         sys.executable, str(train_script), str(train_text),
         "--validation-corpus", str(corpus_dir / "validation.txt"),
@@ -125,7 +137,9 @@ def main():
         "--checkpoint", str(checkpoint),
         "--token-cache-dir", str(token_dir),
         "--steps", str(args.steps),
-        "--hidden-size", str(args.hidden_size),
+        "--d-model", str(args.hidden_size),
+        "--heads", str(args.heads),
+        "--layers", str(args.layers),
         "--seq-len", str(args.seq_len),
         "--learning-rate", str(args.learning_rate),
         "--seed", str(args.seed),
