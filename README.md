@@ -170,9 +170,9 @@ Unicode word-boundary handling in the demonstration C++ utility is intentionally
 
 ## Multilingual training by country-primary language
 
-The multilingual preparation path is in `python/prepare_multilingual_corpus.py`, with a starter policy at `configs/country_primary_languages.json`. The Philippines entry selects **Filipino (Tagalog-based)** only, as requested. The policy currently covers only a starter set of countries; it is **not yet a complete worldwide country/language mapping**.
+The multilingual preparation path is in `python/prepare_multilingual_corpus.py`, with a starter policy at `configs/country_primary_languages.json`. The Philippines entry selects **Tagalog** only, as requested. The policy currently covers only a starter set of countries; it is **not yet a complete worldwide country/language mapping**.
 
-Organize reviewed, licensed source text by language code under `data/multilingual/raw/<language-code>/`, for example `data/multilingual/raw/fil/` for Filipino. Then run:
+Organize reviewed, licensed source text by language code under `data/multilingual/raw/<language-code>/`, for example `data/multilingual/raw/tl/` for Tagalog. Then run:
 
 ```bash
 python python/prepare_multilingual_corpus.py
