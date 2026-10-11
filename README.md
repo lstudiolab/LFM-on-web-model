@@ -275,8 +275,8 @@ Pretraining minimizes next-token prediction loss on the supplied text. Lower val
 
 Important limitations that remain:
 
-1. **Architecture/scale:** the causal Transformer is a compact experimental implementation. It has no GPU training, distributed batches, or optimized attention kernels and is much smaller than a modern production LLM.
-2. **Performance:** the current model is CPU-oriented, has no GPU acceleration or distributed training, and will be slow for long or large runs.
+1. **Architecture/scale:** both implementations here are compact experiments, much smaller than a modern production LLM. The optional PyTorch path batches sequences and can use CUDA/MPS, but has no distributed training, sharded optimizer, or large-scale data pipeline.
+2. **Performance:** the manual NumPy implementation is CPU-oriented and slow. PyTorch speeds up tensor math when suitable hardware is available, but large runs still require substantial compute and memory.
 3. **Evaluation:** benchmark suites, data-contamination checks, per-language/domain perplexity reports, and behavioral/safety evaluations are still needed.
 4. **Memory/retrieval:** the JSON memory store is separate from learned parameters and is not supplied to the generator yet.
 5. **Scale:** useful capability requires significantly more data, parameters, optimization tuning, compute, and engineering than a smoke test.
