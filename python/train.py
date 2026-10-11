@@ -5,7 +5,6 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
-import sys
 import time
 
 import numpy as np
@@ -75,6 +74,8 @@ def main():
     tokenizer = ByteBPETokenizer.load(args.tokenizer) if args.tokenizer else None
     vocab_size = tokenizer.vocab_size if tokenizer else 256
     tokenizer_hash = sha256_file(args.tokenizer) if args.tokenizer else None
+    training_corpus_hash = sha256_file(args.corpus)
+    validation_corpus_hash = sha256_file(args.validation_corpus) if args.validation_corpus else None
     cache_dir = args.token_cache_dir or (args.checkpoint.parent / "tokens")
     train_cache = cache_dir / f"{args.corpus.stem}.tokens.bin"
     _, train_manifest = tokenize_file(args.corpus, train_cache, args.tokenizer)
@@ -88,10 +89,9 @@ def main():
     else:
         # Fallback for quick experiments only; prepare_corpus.py performs a safer
         # document-level split and should be used for real pretraining.
-        split = max(2, int(len(train_all) * 0.9))
-        split = min(split, len(train_all) - 2)
-        if split < 2 or len(train_all) < 4:
+        if len(train_all) < 4:
             ap.error("Corpus needs at least four tokens when --validation-corpus is omitted")
+        split = min(max(2, int(len(train_all) * 0.9)), len(train_all) - 2)
         train = train_all[:split]
         valid = train_all[split:]
 
@@ -101,15 +101,28 @@ def main():
     args.checkpoint.parent.mkdir(parents=True, exist_ok=True)
     log_path = args.log or args.checkpoint.with_suffix(".metrics.jsonl")
     log_path.parent.mkdir(parents=True, exist_ok=True)
+    if not args.resume:
+        log_path.write_text("", encoding="utf-8")
+
     if args.resume:
         if not args.checkpoint.is_file():
             ap.error(f"Cannot resume: checkpoint not found: {args.checkpoint}")
         model = SoraRNN.load(args.checkpoint)
         if model.vocab_size != vocab_size:
             ap.error(f"Checkpoint vocabulary ({model.vocab_size}) does not match tokenizer ({vocab_size})")
+        if model.hidden_size != args.hidden_size:
+            ap.error(f"Checkpoint hidden size ({model.hidden_size}) does not match --hidden-size ({args.hidden_size})")
         previous = getattr(model, "metadata", {})
         if previous.get("tokenizer_sha256") != tokenizer_hash:
             ap.error("Checkpoint tokenizer fingerprint does not match this run. Use the original tokenizer or start a new run.")
+        if previous.get("training_corpus_sha256") not in (None, training_corpus_hash):
+            ap.error("Training corpus changed since the checkpoint was written; resume with the original corpus or start a new run.")
+        if previous.get("validation_corpus_sha256") not in (None, validation_corpus_hash):
+            ap.error("Validation corpus changed since the checkpoint was written; resume with the original corpus or start a new run.")
+        if previous.get("seq_len") not in (None, args.seq_len):
+            ap.error("Sequence length differs from the saved run configuration.")
+        if previous.get("learning_rate") not in (None, args.learning_rate):
+            ap.error("Learning rate differs from the saved run configuration.")
         best_validation = float(previous.get("best_validation_loss", float("inf")))
     else:
         model = SoraRNN(args.hidden_size, args.seed, vocab_size=vocab_size)
@@ -141,8 +154,9 @@ def main():
             best_validation = validation_loss
         metadata = {
             "training_corpus": args.corpus.name,
-            "training_corpus_sha256": sha256_file(args.corpus),
+            "training_corpus_sha256": training_corpus_hash,
             "validation_corpus": args.validation_corpus.name if args.validation_corpus else None,
+            "validation_corpus_sha256": validation_corpus_hash,
             "tokenizer_sha256": tokenizer_hash,
             "best_validation_loss": best_validation,
             "seed": args.seed,
@@ -150,7 +164,6 @@ def main():
             "learning_rate": args.learning_rate,
             "run_step": global_step,
         }
-        args.checkpoint.parent.mkdir(parents=True, exist_ok=True)
         model.save(args.checkpoint, metadata)
         if improved:
             best_path = args.checkpoint.with_name(args.checkpoint.stem + ".best" + args.checkpoint.suffix)
@@ -162,7 +175,7 @@ def main():
             "train_loss": float(loss),
             "validation_loss": float(validation_loss),
             "best_validation_loss": float(best_validation),
-            "tokens_per_second_estimate": round(global_step * window / max(elapsed, 1e-9), 3),
+            "tokens_per_second_estimate": round(local_step * window / max(elapsed, 1e-9), 3),
             "elapsed_seconds": round(elapsed, 3),
             "checkpoint": str(args.checkpoint),
         }
