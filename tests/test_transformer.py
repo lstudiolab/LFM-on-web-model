@@ -11,6 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "python"))
 
 from sora_transformer import SoraTransformer
+from evaluate import evaluate_checkpoint
 from tokenizer import ByteBPETokenizer
 from train_bpe import train_bpe
 
@@ -66,6 +67,43 @@ class TestSoraTransformer(unittest.TestCase):
             self.assertEqual(loaded.metadata["training_corpus_sha256"], "test")
             generated = loaded.generate_ids([1, 2], max_new_tokens=3, seed=9, top_k=5)
             self.assertEqual(len(generated), 5)
+
+    def test_held_out_evaluation_uses_checkpoint_tokenizer_and_all_targets(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            train = root / "train.txt"
+            valid = root / "validation.txt"
+            test = root / "held-out-test.txt"
+            tokenizer_file = root / "tokenizer.json"
+            checkpoint = root / "model.npz"
+            train.write_text(("Sora learns from examples. " * 10), encoding="utf-8")
+            valid.write_text(("Validation is not training. " * 8), encoding="utf-8")
+            test.write_text(("This test corpus is never used for training. 😊\n" * 7), encoding="utf-8")
+            tokenizer_file.write_text(
+                json.dumps(train_bpe(train.read_text(encoding="utf-8"), 280)),
+                encoding="utf-8",
+            )
+            command = [
+                sys.executable, str(ROOT / "python" / "train_transformer.py"),
+                str(train), "--validation-corpus", str(valid),
+                "--tokenizer", str(tokenizer_file), "--steps", "2",
+                "--d-model", "8", "--heads", "2", "--layers", "1",
+                "--seq-len", "8", "--eval-every", "1", "--generate-tokens", "0",
+                "--checkpoint", str(checkpoint),
+            ]
+            trained = subprocess.run(command, capture_output=True, text=True, timeout=60)
+            self.assertEqual(trained.returncode, 0, trained.stdout + "\n" + trained.stderr)
+
+            report = evaluate_checkpoint(checkpoint, test, tokenizer_file)
+            self.assertEqual(report["test_tokens"] - 1, report["evaluated_targets"])
+            self.assertTrue(np.isfinite(report["test_loss"]))
+            self.assertGreaterEqual(report["perplexity"], 1.0)
+            self.assertEqual(
+                report["test_corpus_sha256"],
+                __import__("hashlib").sha256(test.read_bytes()).hexdigest(),
+            )
+            with self.assertRaisesRegex(ValueError, "Tokenizer fingerprint"):
+                evaluate_checkpoint(checkpoint, test, None)
 
     def test_transformer_trainer_and_resume_match_uninterrupted_run(self):
         with tempfile.TemporaryDirectory() as directory:
