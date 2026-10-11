@@ -101,7 +101,7 @@ def main():
                     if digest in hashes:
                         continue
                     sink.write(json.dumps({
-                        "text": text, "language_script": config, "source_dataset": dataset_id,
+                        "text": text, "language_script": ("eng_Latn" if dataset_id == FINEWEB_ENGLISH else config), "source_dataset": dataset_id,
                         "source_config": config, "split_source": split,
                         "license": "ODC-By 1.0; review current dataset card and Common Crawl terms"
                     }, ensure_ascii=False) + "\n")
