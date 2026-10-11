@@ -4,7 +4,7 @@ The multilingual corpus builder uses explicitly labelled language folders:
 
 ```text
 data/multilingual/raw/
-  fil/   # Filipino (Tagalog-based)
+  tl/    # Tagalog
   en/    # English
   ja/    # Japanese
   ...
@@ -12,7 +12,7 @@ data/multilingual/raw/
 
 Place only reviewed, legally usable text in each folder. The folder's language code is treated as a label; the script does not automatically detect or translate languages. Keep source URLs, license/permission notes, and attribution alongside your dataset records.
 
-The starter policy is `configs/country_primary_languages.json`. It is intentionally incomplete and must not be described as every country's primary language. It selects Filipino (Tagalog-based) for the Philippines, matching this project's requested scope. Some countries are multilingual; selecting one language is a project simplification, not a statement that other languages are unimportant or unused.
+The starter policy is `configs/country_primary_languages.json`. It is intentionally incomplete and must not be described as every country's primary language. It selects Tagalog for the Philippines, matching this project's requested scope. Some countries are multilingual; selecting one language is a project simplification, not a statement that other languages are unimportant or unused.
 
 Prepare language-specific corpora:
 
