@@ -94,7 +94,8 @@ std::uint32_t codepoint_at(const std::string& s, std::size_t i, std::size_t& wid
     width = 1; return c;
 }
 bool unicode_space(std::uint32_t c) {
-    return c == 0x20 || (c >= 0x09 && c <= 0x0D) || c == 0x85 || c == 0xA0 || c == 0x1680
+    return c == 0x20 || (c >= 0x09 && c <= 0x0D) || (c >= 0x1C && c <= 0x1F)
+        || c == 0x85 || c == 0xA0 || c == 0x1680
         || (c >= 0x2000 && c <= 0x200A) || c == 0x2028 || c == 0x2029 || c == 0x202F
         || c == 0x205F || c == 0x3000;
 }
@@ -107,31 +108,32 @@ bool unicode_word(std::uint32_t c) {
         || (c >= 0xFE00 && c <= 0xFE0F) || (c >= 0x1F3FB && c <= 0x1F3FF)) return false;
     return !unicode_space(c);
 }
+int piece_category(std::uint32_t c) {
+    if (c == '\r' || c == '\n') return 0; // CR/LF are separate pre-tokenized pieces.
+    if (unicode_space(c)) return 1;
+    if (unicode_word(c)) return 2;
+    return 3;
+}
 std::vector<std::string> split_pieces(const std::string& text) {
     std::vector<std::string> pieces;
     std::size_t i = 0;
     while (i < text.size()) {
-        // Python's training tokenizer makes each CR/LF line break a boundary,
-        // separate from adjacent horizontal whitespace.
-        if (text[i] == '\r' || text[i] == '\n') {
-            const auto begin = i;
-            if (text[i] == '\r' && i + 1 < text.size() && text[i + 1] == '\n') i += 2;
-            else ++i;
+        std::size_t width = 1;
+        const auto cp = codepoint_at(text, i, width);
+        if (cp == '\r' && i + 1 < text.size() && text[i + 1] == '\n') width = 2;
+        const auto begin = i;
+        const int cat = piece_category(cp);
+        i += width;
+        if (cat == 0) {
             pieces.push_back(text.substr(begin, i - begin));
             continue;
         }
-
-        std::size_t width = 1;
-        const auto cp = codepoint_at(text, i, width);
-        const int cat = unicode_space(cp) ? 0 : (unicode_word(cp) ? 1 : 2);
-        const auto begin = i;
-        i += width;
         while (i < text.size()) {
-            if (text[i] == '\r' || text[i] == '\n') break;
             std::size_t next_width = 1;
             const auto next = codepoint_at(text, i, next_width);
-            const int next_cat = unicode_space(next) ? 0 : (unicode_word(next) ? 1 : 2);
-            if (next_cat != cat) break;
+            if (next == '\r' && i + 1 < text.size() && text[i + 1] == '\n') break;
+            const int next_cat = piece_category(next);
+            if (next_cat != cat || next_cat == 0) break;
             i += next_width;
         }
         pieces.push_back(text.substr(begin, i - begin));
