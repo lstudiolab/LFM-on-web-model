@@ -40,7 +40,7 @@ STATE_NAMES = {
     "sora-first-training.pt", "sora-latest.pt", "sora-epoch-1.pt",
     "sora-multilingual.pt", "sora-multilingual.best.pt", "sora-tokenizer.json",
     "tokenizer.json", "sora_config.json", "run_config.json",
-    "sora_pretraining_v1_report.json", "sora_baseline_evaluation.json",
+    "sora_pretraining_run.json", "sora_pretraining_v1_report.json", "sora_baseline_evaluation.json",
     "baseline_evaluation.json", "sora_500m_readiness.json",
     "manifest.json", "sora-multilingual.metrics.jsonl",
 }
@@ -172,6 +172,14 @@ def publish(args) -> None:
     bundle = Path(args.bundle).resolve()
     if not bundle.is_file():
         raise SystemExit(f"Bundle not found: {bundle}")
+    try:
+        with tarfile.open(bundle, "r:gz") as archive:
+            member = archive.getmember("SORA_BUNDLE_MANIFEST.json")
+            bundled_manifest = json.load(archive.extractfile(member))
+    except (tarfile.TarError, KeyError, json.JSONDecodeError) as exc:
+        raise SystemExit(f"Not a valid Sora artifact bundle: {exc}") from exc
+    if not bundled_manifest.get("checkpoint_files"):
+        raise SystemExit("Refusing to publish: this bundle has no model checkpoint. Find the trained .pt/.pth/.npz file first.")
     if bundle.stat().st_size >= 2 * 1024 * 1024 * 1024:
         raise SystemExit("GitHub release assets must be smaller than 2 GiB. Create a state-only bundle or split the corpus into a separate licensed artifact.")
     # Fetch public repo metadata; this also validates repository naming.
@@ -219,6 +227,9 @@ def publish(args) -> None:
         "asset_url": asset.get("browser_download_url"),
         "asset_size_bytes": asset.get("size"),
         "asset_sha256": sha256(bundle),
+        "checkpoint_files": bundled_manifest.get("checkpoint_files", []),
+        "contains_raw_corpus": bundled_manifest.get("contains_raw_corpus", False),
+        "bundle_file_count": bundled_manifest.get("file_count"),
         "uploaded_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         "usage": "Download and verify the release asset before loading the checkpoint. The tarball manifest lists individual file hashes.",
         "warning": "This manifest points only to artifacts actually found in the Colab runtime. It does not prove that missing older runs were recovered."
