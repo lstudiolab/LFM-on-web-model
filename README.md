@@ -2,101 +2,141 @@
 
 **LFM** means **Llab Foundation Model**. **Sora** is the experimental conversational AI being developed on top of this project.
 
-This repository contains a small language model that starts from random weights. It is meant to make the whole training loop inspectable and repeatable, not to claim that a tiny model is already a capable assistant.
+This repository implements a small language model from random initialization. It is intended to make the training loop inspectable and repeatable, not to claim that a tiny model is already a capable assistant.
+
+> **Current status:** the corpus-to-tokenizer-to-training workflow is implemented, and regression tests plus GitHub Actions are configured. The neural network is still a small manually implemented RNN baseline, not a modern Transformer or production-ready LLM. No full pretraining run is claimed.
 
 ## What is implemented
 
-- **Training from scratch:** a small recurrent neural network (RNN) predicts the next token. It does not load pretrained model weights.
-- **Training math:** softmax cross-entropy, backpropagation through time, gradient clipping and Adam are implemented in \`python/sora_model.py\`. NumPy provides array/matrix operations; a prebuilt neural-network training framework is not used.
-- **Two input representations:** raw UTF-8 bytes work out of the box. Optional byte-level BPE reduces sequence length for frequent text pieces.
-- **Tokenizer:** \`python/train_bpe.py\` learns a JSON vocabulary, and \`python/tokenizer.py\` encodes/decodes with that same vocabulary. The C++17 utility uses the same JSON format for tokenizer checks.
-- **Training pipeline:** \`python/train.py\` prepares a token cache, trains, measures validation loss, writes JSONL metrics, saves checkpoints, and can resume with the matching tokenizer.
-- **Text generation:** \`python/generate.py\` generates continuations from a trained checkpoint.
-- **Explicit memory store:** \`python/memory.py\` and \`python/memory_cli.py\` provide separate JSON memory commands. This symbolic memory is not the same thing as learning model weights.
-- **Tests and CI:** unit tests plus a GitHub Actions smoke job exercise BPE round-tripping and a short end-to-end training run.
+- **Training from scratch:** a recurrent neural network (RNN) predicts the next token. It does not load pretrained model weights.
+- **Training math:** softmax cross-entropy, backpropagation through time, gradient clipping, and Adam are implemented in python/sora_model.py. NumPy provides array/matrix operations; a prebuilt neural-network training framework is not used.
+- **Raw bytes or BPE:** UTF-8 bytes work out of the box. The optional byte-level BPE tokenizer reduces sequence length for frequent text pieces.
+- **Tokenizer consistency:** python/train_bpe.py learns the vocabulary; python/tokenizer.py encodes and decodes with it. The training and generation paths require a matching tokenizer fingerprint for BPE checkpoints.
+- **Corpus preparation:** python/prepare_corpus.py streams text by paragraphs, normalizes Unicode, deduplicates documents using a temporary SQLite index, then creates a deterministic document-level train/validation split and a hash manifest.
+- **Token caches:** python/tokenize_corpus.py writes compact token IDs to disk and checks corpus/tokenizer hashes before reusing a cache. It avoids keeping a complete token list in Python memory.
+- **Training pipeline:** python/train.py reports train/validation loss, writes JSONL metrics, saves latest and best-validation checkpoints, preserves Adam state, and checks corpus/tokenizer/configuration fingerprints when resuming.
+- **One-command pipeline:** python/pretrain.py prepares the corpus, trains BPE on the training split only, tokenizes both splits, writes a run configuration, performs preflight checks, and optionally starts training.
+- **Text generation:** python/generate.py generates continuations from a trained checkpoint.
+- **Explicit memory store:** python/memory.py and python/memory_cli.py provide a separate JSON memory store. This symbolic memory is not the same as the model learning its parameters, and memory retrieval is not yet wired into generation.
+- **Tests and CI:** the unit tests cover learning updates, checkpoint round-trips, Unicode BPE, data splitting, token cache integrity, an end-to-end run, resume checks, and a full one-command smoke training run. GitHub Actions is configured to execute them.
 
-## Quick start: train Sora
+## Requirements and quick test
 
-Requirements: Python 3.10+ and NumPy. Run these commands from the repository root.
+Python 3.10+ and NumPy are required. Run these commands from the repository root.
 
-\`\`\`bash
+~~~bash
 python -m pip install -r requirements.txt
 python -m unittest discover -s tests -v
-\`\`\`
+~~~
 
-The repository includes small synthetic example files only to verify the pipeline. They are not a useful pretraining corpus.
+The files under data/samples are tiny synthetic examples to verify code paths. They are not a useful pretraining corpus.
 
-### Option A: train with BPE
+## Option A: exercise the tokenizer and trainer on the included sample
 
-First, learn a tokenizer from the training split only:
+Learn BPE from the training file only:
 
-\`\`\`bash
+~~~bash
 python python/train_bpe.py data/samples/train.txt artifacts/sora-tokenizer.json --vocab-size 320
-\`\`\`
+~~~
 
-Then train a small model from random initialization:
+Train from random initialization:
 
-\`\`\`bash
-python python/train.py data/samples/train.txt \\
-  --validation-corpus data/samples/validation.txt \\
-  --tokenizer artifacts/sora-tokenizer.json \\
-  --steps 300 --hidden-size 32 --seq-len 32 \\
-  --checkpoint artifacts/sora-checkpoint.npz \\
-  --eval-every 25 --eval-batches 4 \\
+~~~bash
+python python/train.py data/samples/train.txt \
+  --validation-corpus data/samples/validation.txt \
+  --tokenizer artifacts/sora-tokenizer.json \
+  --steps 300 --hidden-size 32 --seq-len 32 \
+  --checkpoint artifacts/sora-checkpoint.npz \
+  --eval-every 25 --eval-batches 4 \
   --generate-tokens 60 --token-cache-dir artifacts/cache
-\`\`\`
+~~~
 
-Generate a continuation from the resulting checkpoint:
+Generate a continuation:
 
-\`\`\`bash
-python python/generate.py artifacts/sora-checkpoint.npz \\
-  --tokenizer artifacts/sora-tokenizer.json \\
+~~~bash
+python python/generate.py artifacts/sora-checkpoint.npz \
+  --tokenizer artifacts/sora-tokenizer.json \
   --prompt "Sora learns" --tokens 60 --temperature 0.8 --top-k 20
-\`\`\`
+~~~
 
-### Option B: train directly on UTF-8 bytes
+To train directly on UTF-8 bytes, omit the BPE tokenizer flags:
 
-This needs no tokenizer file:
-
-\`\`\`bash
-python python/train.py data/samples/train.txt \\
-  --validation-corpus data/samples/validation.txt \\
-  --steps 300 --hidden-size 32 --seq-len 64 \\
-  --checkpoint artifacts/sora-byte-checkpoint.npz \\
+~~~bash
+python python/train.py data/samples/train.txt \
+  --validation-corpus data/samples/validation.txt \
+  --steps 300 --hidden-size 32 --seq-len 64 \
+  --checkpoint artifacts/sora-byte-checkpoint.npz \
   --eval-every 25 --generate-tokens 60
-\`\`\`
+~~~
 
-### Resume a run
+For a real run, do not use the tiny sample files.
 
-Keep the same model checkpoint, training setup, and tokenizer file. For BPE, the tokenizer fingerprint is checked so token IDs cannot silently change:
+## Option B: prepare a real pretraining corpus
 
-\`\`\`bash
-python python/train.py data/samples/train.txt \\
-  --validation-corpus data/samples/validation.txt \\
-  --tokenizer artifacts/sora-tokenizer.json \\
-  --steps 300 --hidden-size 32 --seq-len 32 \\
-  --checkpoint artifacts/sora-checkpoint.npz --resume
-\`\`\`
+Put source files you have the rights to use into a dedicated folder such as data/raw. The preparer searches recursively for UTF-8 text files with extensions .txt, .text, .md, .markdown, .rst, .html, .xml, .csv, and .jsonl. Blank lines separate documents/paragraphs. A single unbroken text file without blank-line boundaries counts as one document; provide multiple files or paragraph separators so the splitter can keep documents apart.
 
-When resuming, \`--steps\` is the number of additional optimizer updates. Checkpoint files include learned parameters and Adam state; the metrics log is written beside the checkpoint.
+Review every source for licensing and permission, privacy, secrets, quality, language/domain balance, repeated text, and inappropriate or corrupted material. The tool records source hashes and an optional human-written license note in the manifest; it does not determine whether you have legal rights to the data. Do not use private conversations, credentials, or sensitive user data without appropriate authorization.
+
+Prepare, verify, and start a run with one command:
+
+~~~bash
+python python/pretrain.py \
+  --input data/raw \
+  --run-dir runs/sora-base \
+  --steps 10000 \
+  --hidden-size 128 \
+  --seq-len 128 \
+  --vocab-size 1024
+~~~
+
+To generate the dataset/tokenizer/cache/configuration and run preflight without training, append --prepare-only:
+
+~~~bash
+python python/pretrain.py --input data/raw --run-dir runs/sora-base --prepare-only
+~~~
+
+For a tiny smoke test, use options such as --min-document-chars 1 --validation-fraction 0.2 --vocab-size 300 --hidden-size 16 --seq-len 32 --steps 4 --eval-every 2. Smoke tests check that the pipeline runs; they do not create useful language ability.
+
+Do not pass data/samples as the input folder to pretrain.py: that folder includes a separate validation file for Option A, and the one-command pipeline would correctly treat every file in the input folder as source training material. To use that prepared train/validation pair, use the explicit python/train.py command shown above.
+
+The run directory contains:
+
+- corpus/train.txt and corpus/validation.txt — deterministic document-level splits.
+- corpus/manifest.json — source hashes, document counts, byte/character counts, and the optional license note.
+- tokenizer.json — learned BPE merge rules.
+- tokens/*.tokens.bin and companion JSON manifests — token IDs, data type, token count, and source/tokenizer hashes.
+- run_config.json — model size estimate, vocabulary, training options, and tokenizer fingerprint.
+- sora-checkpoint.npz — latest parameters and Adam optimizer state.
+- sora-checkpoint.best.npz — checkpoint with the best measured validation loss.
+- sora-checkpoint.metrics.jsonl — step metrics for plotting or further analysis.
+
+Resume with the same data and settings:
+
+~~~bash
+python python/pretrain.py --input data/raw --run-dir runs/sora-base --steps 10000 --resume
+~~~
+
+When resuming, --steps means additional optimizer updates. The checkpoint will reject a changed tokenizer, training corpus, validation corpus, hidden size, sequence length, or learning rate rather than silently mixing incompatible runs.
 
 ## Optional C++ tokenizer utility
 
-The C++ utility checks the BPE JSON emitted by the Python trainer:
+The C++17 utility checks tokenization using a BPE JSON file emitted by the Python trainer:
 
-\`\`\`bash
+~~~bash
 c++ -std=c++17 -O2 cpp/main.cpp cpp/tokenizer.cpp -o sora-tokenizer
 ./sora-tokenizer artifacts/sora-tokenizer.json "Sora mahal kita 😊"
-\`\`\`
+~~~
 
-It prints token IDs and the decoded text. Unicode word-boundary classification in the C++ demonstration is intentionally lightweight; use Python's tokenizer as the reference for training and evaluation.
+Unicode word-boundary handling in the demonstration C++ utility is intentionally lightweight; Python's tokenizer is the reference for training and generation.
 
-## Use a real corpus
+## What this does—and does not—mean
 
-Replace the synthetic sample with UTF-8 text you have permission to use. Clean duplicates and unwanted personal data. Keep validation documents separate from training documents; do not tune against your final test set. Train the BPE vocabulary on the training split only. For larger corpora, use the corpus preparation/token caching tools in \`python/\` rather than repeatedly tokenizing raw text.
+Pretraining minimizes next-token prediction loss on the supplied text. Lower validation loss means the model improved on that evaluation split; it does not prove reasoning, factual reliability, multilingual competence, or general intelligence. No model is pretrained merely by committing code or downloading the repository. You must provide a corpus, inspect the manifest, execute training, and evaluate the resulting checkpoint.
 
-## What the model can and cannot do
+Important limitations that remain:
 
-This is an educational RNN baseline, not a Transformer or production foundation model. It has limited capacity and a short recurrent context; it will produce weak or incoherent text when trained only on the sample corpus. Falling training loss demonstrates optimization, not reasoning or robust language understanding. Meaningful conversational behavior requires substantially more high-quality data, compute, stronger architectures, thorough evaluation, and later work on dialogue data, safety, retrieval, and application integration.
-
-Training changes the neural network weights. The explicit JSON memory store only saves selected facts and notes; it does not itself train or update those weights.
+1. **Architecture:** the manually implemented RNN has limited capacity and recurrent context. A causal Transformer with attention is the next major model-development step before serious foundation-model scale.
+2. **Performance:** the current model is CPU-oriented, has no GPU acceleration or distributed training, and will be slow for long or large runs.
+3. **Evaluation:** benchmark suites, data-contamination checks, per-language/domain perplexity reports, and behavioral/safety evaluations are still needed.
+4. **Memory/retrieval:** the JSON memory store is separate from learned parameters and is not supplied to the generator yet.
+5. **Scale:** useful capability requires significantly more data, parameters, optimization tuning, compute, and engineering than a smoke test.
