@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import random
 import re
 from collections import Counter
 from pathlib import Path
@@ -81,12 +82,31 @@ def train_bpe(text: str, vocab_size: int) -> dict:
     return _train_from_frequencies(_piece_frequencies(split_pieces(text)), vocab_size)
 
 
-def train_bpe_lines(lines, vocab_size: int) -> dict:
-    """Train from a line iterator without loading a whole corpus into memory."""
+def train_bpe_lines(lines, vocab_size: int, max_lines: int = 200_000, seed: int = 7) -> dict:
+    """Train on a deterministic reservoir sample of lines to bound tokenizer cost.
+
+    Set max_lines=0 to use the entire iterator. The sample is selected across the
+    input stream, so a long multilingual corpus is not restricted to its first files.
+    """
     if vocab_size < BASE_VOCAB_SIZE:
         raise ValueError("vocab_size must be at least 256")
+    if max_lines < 0:
+        raise ValueError("max_lines cannot be negative")
+    if max_lines == 0:
+        selected_lines = lines
+    else:
+        rng = random.Random(seed)
+        reservoir = []
+        for index, line in enumerate(lines):
+            if index < max_lines:
+                reservoir.append(line)
+            else:
+                slot = rng.randrange(index + 1)
+                if slot < max_lines:
+                    reservoir[slot] = line
+        selected_lines = reservoir
     frequencies = Counter()
-    for line in lines:
+    for line in selected_lines:
         frequencies.update(_piece_frequencies(split_pieces(line)))
     return _train_from_frequencies(frequencies, vocab_size)
 
@@ -96,12 +116,16 @@ def main() -> None:
     parser.add_argument("corpus", type=Path, help="training text only, never validation/test text")
     parser.add_argument("output", type=Path)
     parser.add_argument("--vocab-size", type=int, default=1024)
+    parser.add_argument("--max-lines", type=int, default=200_000, help="deterministic reservoir sample size; 0 uses every line")
+    parser.add_argument("--seed", type=int, default=7)
     args = parser.parse_args()
     if not args.corpus.is_file():
         parser.error(f"Corpus not found: {args.corpus}")
+    if args.max_lines < 0:
+        parser.error("--max-lines cannot be negative")
     try:
         with args.corpus.open("r", encoding="utf-8", newline="") as source:
-            model = train_bpe_lines(source, args.vocab_size)
+            model = train_bpe_lines(source, args.vocab_size, args.max_lines, args.seed)
     except (OSError, UnicodeError, ValueError) as exc:
         parser.error(str(exc))
     args.output.parent.mkdir(parents=True, exist_ok=True)
