@@ -46,7 +46,7 @@ python python/pretrain.py \
 
 This verifies that the pipeline works; the sample corpus is too small to produce useful language ability. The same workflow is run automatically by GitHub Actions.
 
-## Option A: exercise the tokenizer and trainer on the included sample
+## Option A: exercise the tokenizer and trainers on the included sample
 
 Learn BPE from the training file only:
 
@@ -66,6 +66,14 @@ python python/train.py data/samples/train.txt \
   --generate-tokens 60 --token-cache-dir artifacts/cache
 ~~~
 
+Train the default causal Transformer directly on the explicit train/validation pair:
+
+~~~bash
+python python/train_transformer.py data/samples/train.txt --validation-corpus data/samples/validation.txt --tokenizer artifacts/sora-tokenizer.json --steps 300 --d-model 64 --heads 4 --layers 2 --seq-len 64 --checkpoint artifacts/sora-transformer.npz --eval-every 25 --generate-tokens 60 --token-cache-dir artifacts/transformer-cache
+~~~
+
+The Transformer trainer is also the model used by python/pretrain.py. The command above is only a test run; the included sample files are too small for meaningful learning.
+
 Generate a continuation:
 
 ~~~bash
@@ -84,7 +92,7 @@ python python/train.py data/samples/train.txt \
   --eval-every 25 --generate-tokens 60
 ~~~
 
-This default path trains the causal Transformer; `--hidden-size` is its model width, and `--heads` must divide that width. For a real run, do not use the tiny sample files.
+`--hidden-size` is the Transformer model width, and `--heads` must divide that width in the one-command path above. For a real run, do not use the tiny sample files.
 
 ## Option B: prepare a real pretraining corpus
 
@@ -99,7 +107,7 @@ python python/pretrain.py \
   --input data/raw \
   --run-dir runs/sora-base \
   --steps 10000 \
-  --hidden-size 128 \
+  --hidden-size 128 --heads 4 --layers 2 \
   --seq-len 128 \
   --vocab-size 1024
 ~~~
@@ -110,7 +118,7 @@ To generate the dataset/tokenizer/cache/configuration and run preflight without 
 python python/pretrain.py --input data/raw --run-dir runs/sora-base --prepare-only
 ~~~
 
-For a tiny smoke test, use options such as --min-document-chars 1 --validation-fraction 0.2 --vocab-size 300 --hidden-size 16 --seq-len 32 --steps 4 --eval-every 2. Smoke tests check that the pipeline runs; they do not create useful language ability.
+For a tiny smoke test, use options such as --min-document-chars 1 --validation-fraction 0.2 --vocab-size 300 --hidden-size 16 --heads 4 --layers 1 --seq-len 32 --steps 4 --eval-every 2. Smoke tests check that the pipeline runs; they do not create useful language ability.
 
 Do not pass data/samples as the input folder to pretrain.py: that folder includes a separate validation file for Option A, and the one-command pipeline would correctly treat every file in the input folder as source training material. To use that prepared train/validation pair, use the explicit python/train.py command shown above.
 
@@ -150,7 +158,7 @@ Pretraining minimizes next-token prediction loss on the supplied text. Lower val
 
 Important limitations that remain:
 
-1. **Architecture:** the manually implemented RNN has limited capacity and recurrent context. A causal Transformer with attention is the next major model-development step before serious foundation-model scale.
+1. **Architecture/scale:** the causal Transformer is a compact experimental implementation. It has no GPU training, distributed batches, or optimized attention kernels and is much smaller than a modern production LLM.
 2. **Performance:** the current model is CPU-oriented, has no GPU acceleration or distributed training, and will be slow for long or large runs.
 3. **Evaluation:** benchmark suites, data-contamination checks, per-language/domain perplexity reports, and behavioral/safety evaluations are still needed.
 4. **Memory/retrieval:** the JSON memory store is separate from learned parameters and is not supplied to the generator yet.
