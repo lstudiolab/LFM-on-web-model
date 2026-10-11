@@ -56,7 +56,7 @@ for p in sorted(run.glob("*")):
 
 ### Continue the same run
 
-If Colab disconnects, clone the repository again, install the same requirements, then restore the generated `data/multilingual` and `runs/sora-multilingual-from-scratch` directories from your own persistent storage before running:
+If Colab disconnects, clone the repository again, install the same requirements, then restore the generated `runs/sora-multilingual-from-scratch` directory (including its checkpoint, tokenizer, train/validation split, and trainer cache/state) from persistent storage before running. The runner now preserves those existing files when `--resume` is used:
 
 ```python
 !python python/run_multilingual_from_scratch.py --skip-download --resume --steps 3000
@@ -71,4 +71,4 @@ If Colab disconnects, clone the repository again, install the same requirements,
 - Do not overwrite older checkpoints when experimenting with a different model size; use a separate run directory for each version.
 - Compare validation loss and held-out evaluations between runs. More parameters alone do not guarantee better language ability; training data, training duration, and evaluation matter too.
 
-For the broader default multilingual sweep and full pipeline options, see [MULTILINGUAL_TRAINING.md](MULTILINGUAL_TRAINING.md).
+For the broader default multilingual sweep and full pipeline options, see [MULTILINGUAL_TRAINING.md](MULTILINGUAL_TRAINING.md). To recover model checkpoints/tokenizers/reports from a Colab runtime and attach them to this repository as a release asset, follow [COLAB_RECOVER_SORA.md](COLAB_RECOVER_SORA.md).
