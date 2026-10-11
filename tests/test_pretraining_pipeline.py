@@ -165,6 +165,45 @@ class TestPretrainingPipeline(unittest.TestCase):
             self.assertEqual(resumed.returncode, 0, resumed.stdout + "\n" + resumed.stderr)
             self.assertEqual(SoraRNN.load(checkpoint).step, 3)
 
+    def test_resume_matches_uninterrupted_training(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            train = root / "train.txt"
+            valid = root / "validation.txt"
+            tokenizer_path = root / "tokenizer.json"
+            train.write_text(("Sora learns predictable text patterns. " * 8), encoding="utf-8")
+            valid.write_text(("Validation remains separate from training. " * 6), encoding="utf-8")
+            tokenizer_path.write_text(json.dumps(train_bpe(train.read_text(encoding="utf-8"), 270)),
+                                      encoding="utf-8")
+
+            common = [
+                sys.executable, str(ROOT / "python" / "train.py"), str(train),
+                "--validation-corpus", str(valid), "--tokenizer", str(tokenizer_path),
+                "--hidden-size", "8", "--seq-len", "8", "--learning-rate", "0.001",
+                "--eval-every", "1", "--generate-tokens", "0", "--top-k", "5", "--seed", "11",
+            ]
+            continuous_path = root / "continuous.npz"
+            continuous = common + ["--steps", "4", "--checkpoint", str(continuous_path)]
+            first = subprocess.run(continuous, capture_output=True, text=True, timeout=45)
+            self.assertEqual(first.returncode, 0, first.stdout + "\n" + first.stderr)
+
+            resumed_path = root / "resumed.npz"
+            split = common + ["--steps", "2", "--checkpoint", str(resumed_path)]
+            first_half = subprocess.run(split, capture_output=True, text=True, timeout=45)
+            self.assertEqual(first_half.returncode, 0, first_half.stdout + "\n" + first_half.stderr)
+            split[split.index("--steps") + 1] = "2"
+            split.append("--resume")
+            second_half = subprocess.run(split, capture_output=True, text=True, timeout=45)
+            self.assertEqual(second_half.returncode, 0, second_half.stdout + "\n" + second_half.stderr)
+
+            expected = SoraRNN.load(continuous_path)
+            actual = SoraRNN.load(resumed_path)
+            self.assertEqual(expected.step, actual.step)
+            for key in expected.p:
+                np.testing.assert_array_equal(expected.p[key], actual.p[key], err_msg=key)
+                np.testing.assert_array_equal(expected.m[key], actual.m[key], err_msg=f"Adam m: {key}")
+                np.testing.assert_array_equal(expected.v[key], actual.v[key], err_msg=f"Adam v: {key}")
+
     def test_checked_in_smoke_corpus_can_pretrain(self):
         source = ROOT / "data" / "samples" / "pretrain-source"
         if not source.is_dir():
