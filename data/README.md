@@ -1,15 +1,29 @@
-# Training data
+# Multilingual training data
 
-The files in samples/ are tiny synthetic examples for checking the tokenizer and training loop. They are not a meaningful language-model training corpus.
+The multilingual corpus builder uses explicitly labelled language folders:
 
-For pretraining, add source text that you are legally allowed to use under raw/ or another dedicated directory. Keep private conversations, credentials, and sensitive information out of the corpus and repository. Review licenses, source quality, duplicate content, language/domain balance, privacy, and formatting before training.
+```text
+data/multilingual/raw/
+  fil/   # Filipino (Tagalog-based)
+  en/    # English
+  ja/    # Japanese
+  ...
+```
 
-Run the full corpus pipeline from the repository root:
+Place only reviewed, legally usable text in each folder. The folder's language code is treated as a label; the script does not automatically detect or translate languages. Keep source URLs, license/permission notes, and attribution alongside your dataset records.
 
-~~~sh
-python python/pretrain.py --input data/raw --run-dir runs/sora-base --prepare-only
-~~~
+The starter policy is `configs/country_primary_languages.json`. It is intentionally incomplete and must not be described as every country's primary language. It selects Filipino (Tagalog-based) for the Philippines, matching this project's requested scope. Some countries are multilingual; selecting one language is a project simplification, not a statement that other languages are unimportant or unused.
 
-Inspect runs/sora-base/corpus/manifest.json, the train/validation split, tokenizer.json, and run_config.json before starting a long training job. When ready, omit --prepare-only. The preparer deduplicates paragraphs/documents and makes a deterministic document-level split. The BPE vocabulary is learned from training text only; validation is kept separate. A single unbroken file without blank-line paragraph boundaries is one document, so provide multiple files or paragraph separators.
+Prepare language-specific corpora:
 
-See the top-level README for full training, resume, generation, and testing commands.
+```bash
+python python/prepare_multilingual_corpus.py
+```
+
+Review `data/multilingual/selected/manifest.json`. Missing language data is reported, not fabricated. Then train using the selected text files as input to the existing pretraining pipeline, after you have completed and reviewed the country-language policy and added enough high-quality data:
+
+```bash
+python python/pretrain.py --input data/multilingual/selected --run-dir runs/sora-multilingual --steps 10000 --hidden-size 128 --heads 4 --layers 2 --seq-len 128 --vocab-size 4096
+```
+
+This starter script and policy do not themselves train Sora, download datasets, or establish multilingual capability. The repository's current NumPy Transformer is experimental and CPU-oriented; meaningful multilingual pretraining needs a much larger reviewed corpus, appropriate compute, and per-language held-out evaluation.
