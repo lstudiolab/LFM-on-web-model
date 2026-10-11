@@ -74,14 +74,16 @@ def build_corpus(source_root, policy_path, output_dir, max_chars_per_language=0,
                             "characters": len(text)})
         text = "\n\n".join(chunks)
         if max_chars_per_language and len(text) > max_chars_per_language:
-            lines = [line for chunk in chunks for line in chunk.splitlines() if line.strip()]
-            random.Random(seed).shuffle(lines)
+            # Keep paragraph/article units intact while sampling a reproducible,
+            # similarly sized slice from each language.
+            documents = [part.strip() for chunk in chunks for part in chunk.split("\n\n") if part.strip()]
+            random.Random(seed).shuffle(documents)
             selected, count = [], 0
-            for line in lines:
-                if count + len(line) <= max_chars_per_language:
-                    selected.append(line)
-                    count += len(line)
-            text = "\n".join(selected)
+            for document in documents:
+                if count + len(document) <= max_chars_per_language:
+                    selected.append(document)
+                    count += len(document)
+            text = "\n\n".join(selected)
         status = "prepared" if len(text.strip()) >= 2 else ("missing-source-data" if not files else "insufficient-source-data")
         record = {"status": status, "files": len(sources), "characters": len(text), "sources": sources}
         if status == "prepared":
