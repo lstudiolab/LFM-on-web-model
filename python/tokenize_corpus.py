@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import argparse
-import hashlib
+import codecs
 import json
 from pathlib import Path
 
@@ -25,7 +25,8 @@ def tokenize_file(source_path, output_path, tokenizer_path=None, force=False):
     tokenizer_hash = sha256_file(tokenizer_path) if tokenizer_path else None
     source_hash = sha256_file(source_path)
     vocab_size = tokenizer.vocab_size if tokenizer else 256
-    dtype = np.dtype(np.uint16 if vocab_size <= 65536 else np.uint32)
+    dtype = np.dtype(np.uint8 if tokenizer is None else
+                     (np.uint16 if vocab_size <= 65536 else np.uint32))
     if vocab_size > np.iinfo(np.uint32).max:
         raise ValueError("Tokenizer vocabulary is too large for the supported token cache")
 
@@ -34,11 +35,15 @@ def tokenize_file(source_path, output_path, tokenizer_path=None, force=False):
     if not force and output_path.is_file() and meta_path.is_file():
         try:
             existing = json.loads(meta_path.read_text(encoding="utf-8"))
-            if (existing.get("source_sha256") == source_hash
-                    and existing.get("tokenizer_sha256") == tokenizer_hash
-                    and existing.get("vocab_size") == vocab_size
-                    and existing.get("dtype") == dtype.name
-                    and output_path.stat().st_size == existing.get("token_count", -1) * dtype.itemsize):
+            cache_matches = (
+                existing.get("source_sha256") == source_hash
+                and existing.get("tokenizer_sha256") == tokenizer_hash
+                and existing.get("vocab_size") == vocab_size
+                and existing.get("dtype") == dtype.name
+                and output_path.stat().st_size == existing.get("token_count", -1) * dtype.itemsize
+                and existing.get("cache_sha256") == sha256_file(output_path)
+            )
+            if cache_matches:
                 return output_path, existing
         except (OSError, ValueError, TypeError):
             pass
@@ -46,15 +51,18 @@ def tokenize_file(source_path, output_path, tokenizer_path=None, force=False):
     token_count = 0
     with source_path.open("rb") as source, output_path.open("wb") as target:
         if tokenizer is None:
-            # Byte IDs are the raw UTF-8 bytes: no Python list or RAM copy required.
+            decoder = codecs.getincrementaldecoder("utf-8")("strict")
             while True:
                 block = source.read(1024 * 1024)
                 if not block:
                     break
+                decoder.decode(block, final=False)
                 target.write(block)
                 token_count += len(block)
+            decoder.decode(b"", final=True)
         else:
-            # A newline is a tokenizer boundary, so line-by-line encoding is exact.
+            # Newlines form whitespace-piece boundaries, so line-wise processing
+            # produces the same token IDs as tokenizing the whole text at once.
             for raw_line in source:
                 line = raw_line.decode("utf-8", errors="strict")
                 ids = tokenizer.encode(line)
