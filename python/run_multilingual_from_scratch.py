@@ -128,7 +128,7 @@ def main():
         parser.error("invalid sequence length, tokenizer sample, validation fraction, or minimum document length")
 
     args.run_dir.mkdir(parents=True, exist_ok=True)
-    if not args.skip_download:
+    if not args.skip_download and not args.resume:
         run([
             sys.executable, str(Path(__file__).with_name("download_multilingual_fineweb2.py")),
             "--output-dir", str(args.data_dir),
