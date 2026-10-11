@@ -5,7 +5,10 @@ import tempfile
 import unittest
 from pathlib import Path
 
-import torch
+try:
+    import torch
+except ImportError:
+    raise unittest.SkipTest("PyTorch is optional; install requirements-torch.txt to run these tests")
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "python"))
