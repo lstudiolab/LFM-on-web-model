@@ -94,6 +94,22 @@ python python/train.py data/samples/train.txt \
 
 `--hidden-size` is the Transformer model width, and `--heads` must divide that width in the one-command path above. For a real run, do not use the tiny sample files.
 
+## Final evaluation on a held-out test set
+
+Keep three distinct splits: training data updates weights, validation data selects checkpoints/configurations, and test data is used only for final reporting. Do not use the test score to tune settings or choose the best checkpoint.
+
+After training, run the evaluator against a separately curated test file:
+
+~~~bash
+python python/evaluate.py \
+  runs/sora-base/sora-checkpoint.best.npz \
+  data/held-out/test.txt \
+  --tokenizer runs/sora-base/tokenizer.json \
+  --output runs/sora-base/test-results.json
+~~~
+
+For byte-level checkpoints, omit --tokenizer. The evaluator checks the checkpoint/tokenizer match, evaluates every next-token target in the test file once, and writes mean cross-entropy loss and perplexity with hashes identifying the checkpoint inputs. Perplexity is a language-model metric, not proof of reasoning or factual accuracy.
+
 ## Option B: prepare a real pretraining corpus
 
 Put source files you have the rights to use into a dedicated folder such as data/raw. The preparer searches recursively for UTF-8 text files with extensions .txt, .text, .md, .markdown, .rst, .html, .xml, .csv, and .jsonl. Blank lines separate documents/paragraphs. A single unbroken text file without blank-line boundaries counts as one document; provide multiple files or paragraph separators so the splitter can keep documents apart.
