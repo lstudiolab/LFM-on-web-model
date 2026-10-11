@@ -92,6 +92,16 @@ On success, the script creates a GitHub Release and updates `models/sora-artifac
 os.environ.pop("GITHUB_TOKEN", None)
 ```
 
+## Restore the registered model in a fresh notebook
+
+Once a checkpoint has been published, a fresh Colab or deployment environment can retrieve the release bundle and verify its SHA-256 hashes without a token:
+
+```python
+!python python/sora_artifacts.py restore --output-dir /content/sora-model
+```
+
+Verified files are extracted to `/content/sora-model/sora-artifacts/`. The downloaded archive is stored alongside them. Read `SORA_BUNDLE_MANIFEST.json` and choose the checkpoint that matches the intended architecture; do not assume the newest filename is compatible with every trainer. This command restores files but does not automatically wire a separate web server to inference.
+
 ## About the corpus and resuming training
 
 The model checkpoint and its exact matching tokenizer/config are the learned state needed to load the model for inference. To **resume optimizer training exactly**, you also need the original training/validation data, the compatible training state, and the original run settings. Large raw corpora and token caches are not included by default. Keep them in private/persistent storage unless redistribution rights have been checked.
