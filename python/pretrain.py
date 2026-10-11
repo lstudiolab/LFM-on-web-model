@@ -9,7 +9,7 @@ import subprocess
 import sys
 
 from prepare_corpus import prepare
-from sora_model import SoraRNN, sha256_file
+from sora_model import sha256_file
 from tokenize_corpus import tokenize_file
 from tokenizer import ByteBPETokenizer
 
@@ -84,14 +84,16 @@ def main():
           f"validation tokens: {valid_tokens['token_count']:,}")
 
     print("[4/5] Estimating model size and writing run configuration.")
-    model = SoraRNN(args.hidden_size, args.seed, tokenizer.vocab_size)
+    # Count parameters algebraically so preflight does not allocate model weights.
+    h, v = args.hidden_size, tokenizer.vocab_size
+    parameter_count = 2 * v * h + 2 * h * h + h + v
     config = {
         "format": "lfm-pretraining-run-v1",
         "model": "manual-gradient byte/BPE RNN (experimental baseline)",
-        "hidden_size": args.hidden_size,
-        "vocab_size": tokenizer.vocab_size,
-        "parameters": model.parameter_count,
-        "approx_parameter_plus_adam_state_bytes_fp32": model.parameter_count * 12,
+        "hidden_size": h,
+        "vocab_size": v,
+        "parameters": parameter_count,
+        "approx_parameter_plus_adam_state_bytes_fp32": parameter_count * 12,
         "sequence_length": args.seq_len,
         "steps": args.steps,
         "learning_rate": args.learning_rate,
@@ -105,8 +107,9 @@ def main():
     (run_dir / "run_config.json").write_text(
         json.dumps(config, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
     )
-    print(f"Parameter count: {model.parameter_count:,}")
-    print(f"Approx. float32 parameters + Adam moments: {config['approx_parameter_plus_adam_state_bytes_fp32'] / (1024**2):.2f} MiB")
+    print(f"Parameter count: {parameter_count:,}")
+    print(f"Approx. float32 parameters + Adam moments: "
+          f"{config['approx_parameter_plus_adam_state_bytes_fp32'] / (1024**2):.2f} MiB")
     print(f"Configuration: {run_dir / 'run_config.json'}")
 
     if args.prepare_only:
