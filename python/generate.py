@@ -1,10 +1,19 @@
 #!/usr/bin/env python3
-"""Generate text from a Sora checkpoint."""
+"""Generate text from a Sora RNN or causal Transformer checkpoint."""
 import argparse
+import json
 from pathlib import Path
 
+import numpy as np
+
 from sora_model import SoraRNN, sha256_file
+from sora_transformer import CHECKPOINT_FORMAT as TRANSFORMER_FORMAT, SoraTransformer
 from tokenizer import ByteBPETokenizer
+
+
+def checkpoint_format(path: Path) -> str:
+    with np.load(path, allow_pickle=False) as data:
+        return str(json.loads(str(data["meta"].item())).get("format", ""))
 
 
 def main():
@@ -20,8 +29,10 @@ def main():
     args = parser.parse_args()
     if args.tokens < 0:
         parser.error("--tokens cannot be negative")
+
     try:
-        model = SoraRNN.load(args.checkpoint)
+        is_transformer = checkpoint_format(args.checkpoint) == TRANSFORMER_FORMAT
+        model = SoraTransformer.load(args.checkpoint) if is_transformer else SoraRNN.load(args.checkpoint)
         if model.vocab_size > 256:
             if not args.tokenizer:
                 parser.error("This checkpoint uses BPE; pass --tokenizer tokenizer.json")
@@ -31,12 +42,20 @@ def main():
             expected_hash = getattr(model, "metadata", {}).get("tokenizer_sha256")
             if expected_hash and expected_hash != sha256_file(args.tokenizer):
                 parser.error("Tokenizer file does not match the checkpoint tokenizer fingerprint")
-            ids = tokenizer.encode(args.prompt)
-            output = model.generate_ids(ids, args.tokens, args.temperature, args.seed, args.top_k)
-            print(tokenizer.decode(output))
+            prompt_ids = tokenizer.encode(args.prompt)
+            output_ids = model.generate_ids(
+                prompt_ids, args.tokens, args.temperature, args.seed, args.top_k
+            )
+            print(tokenizer.decode(output_ids))
+        elif is_transformer:
+            prompt_ids = list(args.prompt.encode("utf-8"))
+            output_ids = model.generate_ids(
+                prompt_ids, args.tokens, args.temperature, args.seed, args.top_k
+            )
+            print(bytes(output_ids).decode("utf-8", errors="replace"))
         else:
             print(model.generate(args.prompt, args.tokens, args.temperature, args.seed, args.top_k))
-    except (OSError, ValueError) as exc:
+    except (OSError, ValueError, KeyError) as exc:
         parser.error(str(exc))
 
 
