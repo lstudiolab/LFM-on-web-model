@@ -30,6 +30,10 @@ jobs:
           --checkpoint artifacts/smoke-checkpoint.npz
           --eval-every 6 --eval-batches 2
           --generate-tokens 16 --token-cache-dir artifacts/cache
+      - name: Compile C++ tokenizer utility
+        run: c++ -std=c++17 -O2 -Wall -Wextra -pedantic cpp/main.cpp cpp/tokenizer.cpp -o artifacts/sora-tokenizer
+      - name: Verify C++ tokenizer loads Python vocabulary
+        run: ./artifacts/sora-tokenizer artifacts/sora-tokenizer.json "Sora mahal kita 😊" | grep -F "Decoded: Sora mahal kita 😊"
       - name: Verify checkpoint and metrics
         run: |
           test -s artifacts/smoke-checkpoint.npz
