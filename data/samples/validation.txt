@@ -1,0 +1,7 @@
+Sora studies examples and predicts what token comes next.
+The learning system saves parameters after training steps.
+Ang Sora ay isang eksperimental na language model.
+Validation helps measure whether the model improves on separate text.
+The model can generate text from a prompt after training.
+Use only training data that you have permission to use.
+Ang datos ay dapat malinis at walang dobleng halimbawa.
