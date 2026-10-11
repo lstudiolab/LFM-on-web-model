@@ -18,7 +18,7 @@ This repository implements a small language model from random initialization. It
 - **One-command pipeline:** python/pretrain.py prepares the corpus, trains BPE on the training split only, tokenizes both splits, writes a run configuration, performs preflight checks, and optionally starts training.
 - **Text generation:** python/generate.py generates continuations from a trained checkpoint.
 - **Explicit memory store:** python/memory.py and python/memory_cli.py provide a separate JSON memory store. This symbolic memory is not the same as the model learning its parameters, and memory retrieval is not yet wired into generation.
-- **Tests and CI:** the unit tests cover learning updates, checkpoint round-trips, Unicode BPE, data splitting, token cache integrity, an end-to-end run, resume checks, and a full one-command smoke training run. GitHub Actions is configured to execute them.
+- **Tests and CI:** unit tests cover RNN parameter updates, checkpoint restoration, explicit memory persistence, BPE training, and Unicode tokenizer round-trips. GitHub Actions additionally runs the complete corpus-to-checkpoint smoke path and compiles the C++ tokenizer utility.
 
 ## Requirements and quick test
 
