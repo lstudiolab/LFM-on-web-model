@@ -1,0 +1,9 @@
+{
+  "format": "sora-release-artifact-pointer-v1",
+  "status": "not_yet_published",
+  "repository": "lstudiolab/LFM-on-web-model",
+  "release_tag": null,
+  "release_url": null,
+  "asset_url": null,
+  "note": "No Colab checkpoint has been uploaded to this repository yet. Run COLAB_RECOVER_SORA.md in a runtime that contains the trained model files. The publishing script updates this manifest after a successful upload."
+}
