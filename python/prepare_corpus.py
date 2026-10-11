@@ -6,15 +6,19 @@ import argparse
 import hashlib
 import json
 import random
-import re
+import sqlite3
 import unicodedata
 from pathlib import Path
 
 TEXT_SUFFIXES = {".txt", ".text", ".md", ".markdown", ".rst", ".html", ".xml", ".csv", ".jsonl"}
 
 
-def sha256_bytes(data: bytes) -> str:
-    return hashlib.sha256(data).hexdigest()
+def sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as stream:
+        for block in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(block)
+    return digest.hexdigest()
 
 
 def discover_files(inputs):
@@ -35,14 +39,33 @@ def discover_files(inputs):
     return unique
 
 
+def iter_documents(stream, min_chars: int):
+    """Yield paragraph documents from a text stream without loading the whole file."""
+    lines = []
+
+    def normalize_lines(raw_lines):
+        normalized = [unicodedata.normalize("NFC", line.rstrip("\r\n").rstrip())
+                      for line in raw_lines]
+        return "\n".join(normalized).strip()
+
+    for line in stream:
+        if not line.strip():
+            document = normalize_lines(lines) if lines else ""
+            if len(document) >= min_chars:
+                yield document
+            lines = []
+        else:
+            lines.append(line)
+    document = normalize_lines(lines) if lines else ""
+    if len(document) >= min_chars:
+        yield document
+
+
 def extract_documents(text: str, min_chars: int):
-    text = unicodedata.normalize("NFC", text.replace("\r\n", "\n").replace("\r", "\n"))
-    text = "\n".join(line.rstrip() for line in text.split("\n"))
-    chunks = re.split(r"\n[ \t]*\n+", text)
-    for chunk in chunks:
-        document = chunk.strip()
-        if len(document) >= min_chars:
-            yield document
+    """In-memory helper retained for tests and small callers."""
+    from io import StringIO
+    yield from iter_documents(StringIO(text.replace("\r\n", "\n").replace("\r", "\n")),
+                              min_chars)
 
 
 def prepare(inputs, output_dir: Path, validation_fraction=0.02, seed=7,
@@ -53,70 +76,112 @@ def prepare(inputs, output_dir: Path, validation_fraction=0.02, seed=7,
         raise ValueError("min_document_chars must be positive")
 
     files = discover_files(inputs)
-    documents = []
-    file_records = []
-    seen = set()
-    duplicate_count = 0
-    for path in files:
-        raw = path.read_bytes()
-        text = raw.decode("utf-8", errors="strict")
-        file_records.append({
-            "name": path.name,
-            "sha256": sha256_bytes(raw),
-            "bytes": len(raw),
-        })
-        for document in extract_documents(text, min_document_chars):
-            key = hashlib.sha256(document.encode("utf-8")).hexdigest()
-            if key in seen:
-                duplicate_count += 1
-                continue
-            seen.add(key)
-            documents.append(document)
-
-    if len(documents) < 2:
-        raise ValueError(
-            f"Need at least two unique documents/paragraphs for a document-level split; found {len(documents)}. "
-            "Add more corpus text or use separate train and validation files."
-        )
-
-    indexes = list(range(len(documents)))
-    random.Random(seed).shuffle(indexes)
-    valid_count = max(1, round(len(documents) * validation_fraction))
-    valid_count = min(valid_count, len(documents) - 1)
-    valid_indexes = set(indexes[:valid_count])
-    train_docs = [doc for i, doc in enumerate(documents) if i not in valid_indexes]
-    valid_docs = [doc for i, doc in enumerate(documents) if i in valid_indexes]
-
     output_dir.mkdir(parents=True, exist_ok=True)
-    train_path = output_dir / "train.txt"
-    valid_path = output_dir / "validation.txt"
-    train_text = "\n\n".join(train_docs) + "\n"
-    valid_text = "\n\n".join(valid_docs) + "\n"
-    train_path.write_text(train_text, encoding="utf-8", newline="\n")
-    valid_path.write_text(valid_text, encoding="utf-8", newline="\n")
-    manifest = {
-        "format": "lfm-corpus-manifest-v1",
-        "seed": seed,
-        "validation_fraction_requested": validation_fraction,
-        "min_document_chars": min_document_chars,
-        "files": file_records,
-        "documents_total_unique": len(documents),
-        "documents_deduplicated": duplicate_count,
-        "train_documents": len(train_docs),
-        "validation_documents": len(valid_docs),
-        "train_chars": len(train_text),
-        "validation_chars": len(valid_text),
-        "train_bytes": len(train_text.encode("utf-8")),
-        "validation_bytes": len(valid_text.encode("utf-8")),
-        "train_sha256": sha256_bytes(train_text.encode("utf-8")),
-        "validation_sha256": sha256_bytes(valid_text.encode("utf-8")),
-        "license_note": license_note,
-        "warning": "Verify permissions, license, privacy, duplication, and quality of every source before training."
-    }
-    (output_dir / "manifest.json").write_text(
-        json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
-    )
-    return manifest
+    database_path = output_dir / ".corpus-work.sqlite3"
+    database_path.unlink(missing_ok=True)
+    connection = sqlite3.connect(database_path)
+    try:
+        connection.execute(
+            "CREATE TABLE documents (id INTEGER PRIMARY KEY, digest TEXT UNIQUE NOT NULL, text TEXT NOT NULL)"
+        )
+        file_records = []
+        duplicate_count = 0
+        document_count = 0
+
+        for path in files:
+            file_records.append({
+                "name": path.name,
+                "sha256": sha256_file(path),
+                "bytes": path.stat().st_size,
+            })
+            with path.open("r", encoding="utf-8", newline=None) as source:
+                for document in iter_documents(source, min_document_chars):
+                    digest = hashlib.sha256(document.encode("utf-8")).hexdigest()
+                    cursor = connection.execute(
+                        "INSERT OR IGNORE INTO documents (digest, text) VALUES (?, ?)",
+                        (digest, document),
+                    )
+                    if cursor.rowcount == 1:
+                        document_count += 1
+                    else:
+                        duplicate_count += 1
+            connection.commit()
+
+        if document_count < 2:
+            raise ValueError(
+                f"Need at least two unique documents/paragraphs for a document-level split; found {document_count}. "
+                "Add more corpus text or use separate train and validation files."
+            )
+
+        ids = [int(row[0]) for row in connection.execute("SELECT id FROM documents ORDER BY id")]
+        random.Random(seed).shuffle(ids)
+        validation_count = max(1, round(document_count * validation_fraction))
+        validation_count = min(validation_count, document_count - 1)
+        validation_ids = set(ids[:validation_count])
+
+        train_path = output_dir / "train.txt"
+        validation_path = output_dir / "validation.txt"
+
+        def write_split(path: Path, is_validation: bool):
+            digest = hashlib.sha256()
+            char_count = 0
+            byte_count = 0
+            count = 0
+            first = True
+            with path.open("w", encoding="utf-8", newline="\n") as target:
+                for doc_id, document in connection.execute("SELECT id, text FROM documents ORDER BY id"):
+                    belongs_to_validation = int(doc_id) in validation_ids
+                    if belongs_to_validation != is_validation:
+                        continue
+                    if not first:
+                        target.write("\n\n")
+                        digest.update(b"\n\n")
+                        byte_count += 2
+                    target.write(document)
+                    encoded = document.encode("utf-8")
+                    digest.update(encoded)
+                    byte_count += len(encoded)
+                    char_count += len(document)
+                    count += 1
+                    first = False
+                target.write("\n")
+                digest.update(b"\n")
+                byte_count += 1
+            return {
+                "documents": count,
+                "chars": char_count,
+                "bytes": byte_count,
+                "sha256": digest.hexdigest(),
+            }
+
+        train_stats = write_split(train_path, False)
+        validation_stats = write_split(validation_path, True)
+        manifest = {
+            "format": "lfm-corpus-manifest-v1",
+            "seed": seed,
+            "validation_fraction_requested": validation_fraction,
+            "min_document_chars": min_document_chars,
+            "files": file_records,
+            "documents_total_unique": document_count,
+            "documents_deduplicated": duplicate_count,
+            "train_documents": train_stats["documents"],
+            "validation_documents": validation_stats["documents"],
+            "train_chars": train_stats["chars"],
+            "validation_chars": validation_stats["chars"],
+            "train_bytes": train_stats["bytes"],
+            "validation_bytes": validation_stats["bytes"],
+            "train_sha256": train_stats["sha256"],
+            "validation_sha256": validation_stats["sha256"],
+            "license_note": license_note,
+            "warning": "Verify permissions, license, privacy, duplication, and quality of every source before training."
+        }
+        (output_dir / "manifest.json").write_text(
+            json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+        )
+        return manifest
+    finally:
+        connection.close()
+        database_path.unlink(missing_ok=True)
 
 
 def main():
@@ -131,7 +196,7 @@ def main():
     try:
         report = prepare(args.inputs, args.output_dir, args.validation_fraction,
                          args.seed, args.min_document_chars, args.license_note)
-    except (OSError, UnicodeError, ValueError) as exc:
+    except (OSError, UnicodeError, ValueError, sqlite3.Error) as exc:
         parser.error(str(exc))
     print(f"Prepared {report['documents_total_unique']} unique documents "
           f"({report['train_documents']} train, {report['validation_documents']} validation)")
