@@ -4,12 +4,12 @@
 
 This repository implements a small language model from random initialization. It is intended to make the training loop inspectable and repeatable, not to claim that a tiny model is already a capable assistant.
 
-> **Current status:** the corpus-to-tokenizer-to-training workflow is implemented, and regression tests plus GitHub Actions are configured. The neural network is still a small manually implemented RNN baseline, not a modern Transformer or production-ready LLM. No full pretraining run is claimed.
+> **Current status:** the corpus-to-tokenizer-to-training workflow is implemented, and regression tests plus GitHub Actions are configured. The default pretraining path is a compact causal Transformer with manually implemented NumPy forward/backward math; the older RNN remains available as a baseline. This is still experimental, CPU-oriented, and not production-scale. No full pretraining run is claimed.
 
 ## What is implemented
 
-- **Training from scratch:** a recurrent neural network (RNN) predicts the next token. It does not load pretrained model weights.
-- **Training math:** softmax cross-entropy, backpropagation through time, gradient clipping, and Adam are implemented in python/sora_model.py. NumPy provides array/matrix operations; a prebuilt neural-network training framework is not used.
+- **Training from scratch:** the default is a causal Transformer with learned token/position embeddings, multi-head masked self-attention, residual connections, layer normalization, a feed-forward block, and tied input/output embeddings. All parameters begin from random initialization. `python/train.py` retains the RNN baseline.
+- **Training math:** the Transformer manually implements causal attention, softmax cross-entropy, layer-normalization gradients, feed-forward backpropagation, gradient clipping, and Adam in `python/sora_transformer.py`; the RNN's BPTT remains in `python/sora_model.py`. NumPy provides array operations, not an autograd or neural-network training framework.
 - **Raw bytes or BPE:** UTF-8 bytes work out of the box. The optional byte-level BPE tokenizer reduces sequence length for frequent text pieces.
 - **Tokenizer consistency:** python/train_bpe.py learns the vocabulary; python/tokenizer.py encodes and decodes with it. The training and generation paths require a matching tokenizer fingerprint for BPE checkpoints.
 - **Corpus preparation:** python/prepare_corpus.py streams text by paragraphs, normalizes Unicode, deduplicates documents using a temporary SQLite index, then creates a deterministic document-level train/validation split and a hash manifest.
@@ -18,7 +18,7 @@ This repository implements a small language model from random initialization. It
 - **One-command pipeline:** python/pretrain.py prepares the corpus, trains BPE on the training split only, tokenizes both splits, writes a run configuration, performs preflight checks, and optionally starts training.
 - **Text generation:** python/generate.py generates continuations from a trained checkpoint.
 - **Explicit memory store:** python/memory.py and python/memory_cli.py provide a separate JSON memory store. This symbolic memory is not the same as the model learning its parameters, and memory retrieval is not yet wired into generation.
-- **Tests and CI:** unit tests cover RNN parameter updates, checkpoint restoration, explicit memory persistence, BPE training, and Unicode tokenizer round-trips. GitHub Actions additionally runs the complete corpus-to-checkpoint smoke path and compiles the C++ tokenizer utility.
+- **Tests and CI:** tests cover BPE Unicode and whitespace round-trips, C++/Python tokenizer parity, data split repeatability, cache integrity, model checkpoints, manual attention-gradient finite differences, a real sample-corpus pretraining run, and exact uninterrupted-versus-resumed training. GitHub Actions runs the suite on pushes and pull requests.
 
 ## Requirements and quick test
 
@@ -40,7 +40,7 @@ python python/pretrain.py \
   --input data/samples/pretrain-source \
   --run-dir runs/sora-smoke \
   --steps 30 --hidden-size 16 --seq-len 32 \
-  --vocab-size 320 --validation-fraction 0.2 \
+  --vocab-size 320 --heads 4 --layers 2 --validation-fraction 0.2 \
   --min-document-chars 1 --eval-every 10
 ~~~
 
@@ -54,7 +54,7 @@ Learn BPE from the training file only:
 python python/train_bpe.py data/samples/train.txt artifacts/sora-tokenizer.json --vocab-size 320
 ~~~
 
-Train from random initialization:
+Train the RNN baseline from random initialization:
 
 ~~~bash
 python python/train.py data/samples/train.txt \
@@ -84,7 +84,7 @@ python python/train.py data/samples/train.txt \
   --eval-every 25 --generate-tokens 60
 ~~~
 
-For a real run, do not use the tiny sample files.
+This default path trains the causal Transformer; `--hidden-size` is its model width, and `--heads` must divide that width. For a real run, do not use the tiny sample files.
 
 ## Option B: prepare a real pretraining corpus
 
