@@ -27,6 +27,8 @@ def main():
     parser.add_argument("--seq-len", type=int, default=128)
     parser.add_argument("--learning-rate", type=float, default=0.001)
     parser.add_argument("--vocab-size", type=int, default=1024)
+    parser.add_argument("--tokenizer-max-lines", type=int, default=200_000,
+                        help="maximum deterministic reservoir sample size for BPE training; 0 uses all training lines")
     parser.add_argument("--validation-fraction", type=float, default=0.02)
     parser.add_argument("--min-document-chars", type=int, default=20)
     parser.add_argument("--license-note", default="")
@@ -47,6 +49,8 @@ def main():
         parser.error("vocab-size must be between 256 and 1000000")
     if args.learning_rate <= 0 or args.eval_every < 1:
         parser.error("learning-rate must be positive and eval-every must be positive")
+    if args.tokenizer_max_lines < 0:
+        parser.error("tokenizer-max-lines cannot be negative")
 
     run_dir = args.run_dir
     corpus_dir = run_dir / "corpus"
@@ -71,7 +75,8 @@ def main():
     script = Path(__file__).with_name("train_bpe.py")
     result = subprocess.run(
         [sys.executable, str(script), str(train_text), str(tokenizer_path),
-         "--vocab-size", str(args.vocab_size)],
+         "--vocab-size", str(args.vocab_size),
+         "--max-lines", str(args.tokenizer_max_lines), "--seed", str(args.seed)],
         check=False,
     )
     if result.returncode != 0:
@@ -104,6 +109,7 @@ def main():
         "layers": args.layers,
         "heads": args.heads,
         "vocab_size": v,
+        "tokenizer_max_lines": args.tokenizer_max_lines,
         "parameters": parameter_count,
         "approx_parameter_plus_adam_state_bytes_fp32": parameter_count * 12,
         "sequence_length": args.seq_len,
