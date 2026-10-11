@@ -2,13 +2,13 @@
   "format": "lfm-country-primary-languages-v1",
   "name": "Country primary-language policy (starter)",
   "policy_version": 1,
-  "note": "This is a starter mapping, not worldwide coverage. Expand and review all countries before claiming global coverage. The project intentionally selects Filipino (Tagalog-based) for the Philippines.",
+  "note": "This is a starter mapping, not worldwide coverage. Expand and review all countries before claiming global coverage. The project intentionally selects Tagalog for the Philippines.",
   "countries": [
     {
       "country_code": "PH",
       "country": "Philippines",
-      "primary_language": "fil",
-      "display_name": "Filipino (Tagalog-based)"
+      "primary_language": "tl",
+      "display_name": "Tagalog"
     },
     {
       "country_code": "US",
