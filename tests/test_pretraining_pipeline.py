@@ -124,6 +124,48 @@ class TestPretrainingPipeline(unittest.TestCase):
             self.assertEqual(loaded.vocab_size, ByteBPETokenizer.load(tokenizer_path).vocab_size)
             self.assertTrue(checkpoint.with_suffix(".metrics.jsonl").exists())
 
+            resume_command = command.copy()
+            resume_command[resume_command.index("--steps") + 1] = "1"
+            resume_command.append("--resume")
+            resumed = subprocess.run(resume_command, capture_output=True, text=True, timeout=30)
+            self.assertEqual(resumed.returncode, 0, resumed.stdout + "\n" + resumed.stderr)
+            self.assertEqual(SoraRNN.load(checkpoint).step, 3)
+
+    def test_one_command_pretraining_pipeline(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            raw = root / "raw"
+            raw.mkdir()
+            documents = [
+                "Document alpha teaches Sora to predict the next token from text.",
+                "Document beta explains why validation examples must stay separate.",
+                "Document gamma describes gradients, training loss, and checkpoints.",
+                "Document delta has Filipino text: Ang modelo ay natututo sa teksto.",
+                "Document epsilon tests punctuation, numbers 123, and Unicode 😊.",
+                "Document zeta describes the tokenizer and memory separately.",
+                "Document eta adds enough repeated patterns for byte pair merges.",
+                "Document theta records that all model weights begin randomly.",
+            ]
+            (raw / "corpus.txt").write_text("\n\n".join(documents), encoding="utf-8")
+            run_dir = root / "run"
+            command = [
+                sys.executable, str(ROOT / "python" / "pretrain.py"),
+                "--input", str(raw), "--run-dir", str(run_dir),
+                "--steps", "2", "--hidden-size", "8", "--seq-len", "8",
+                "--vocab-size", "270", "--validation-fraction", "0.25",
+                "--min-document-chars", "1", "--eval-every", "1",
+            ]
+            completed = subprocess.run(command, capture_output=True, text=True, timeout=45)
+            self.assertEqual(completed.returncode, 0, completed.stdout + "\n" + completed.stderr)
+            self.assertTrue((run_dir / "corpus" / "manifest.json").is_file())
+            self.assertTrue((run_dir / "tokenizer.json").is_file())
+            self.assertTrue((run_dir / "run_config.json").is_file())
+            self.assertTrue((run_dir / "sora-checkpoint.npz").is_file())
+            self.assertTrue((run_dir / "sora-checkpoint.best.npz").is_file())
+            config = json.loads((run_dir / "run_config.json").read_text(encoding="utf-8"))
+            self.assertGreater(config["parameters"], 0)
+
+
 
 if __name__ == "__main__":
     unittest.main()
