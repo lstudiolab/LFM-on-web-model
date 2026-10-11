@@ -1,0 +1,18 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+
+# Training artifacts and user data
+*.npz
+*.metrics.jsonl
+*.tokens.bin
+*.tokens.bin.json
+sora-memory.json
+sora-checkpoint*
+runs/
+data/raw/
+data/processed/
+data/*.txt
