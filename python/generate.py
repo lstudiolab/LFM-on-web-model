@@ -3,7 +3,7 @@
 import argparse
 from pathlib import Path
 
-from sora_model import SoraRNN
+from sora_model import SoraRNN, sha256_file
 from tokenizer import ByteBPETokenizer
 
 
@@ -28,6 +28,9 @@ def main():
             tokenizer = ByteBPETokenizer.load(args.tokenizer)
             if tokenizer.vocab_size != model.vocab_size:
                 parser.error("Tokenizer vocabulary does not match checkpoint")
+            expected_hash = getattr(model, "metadata", {}).get("tokenizer_sha256")
+            if expected_hash and expected_hash != sha256_file(args.tokenizer):
+                parser.error("Tokenizer file does not match the checkpoint tokenizer fingerprint")
             ids = tokenizer.encode(args.prompt)
             output = model.generate_ids(ids, args.tokens, args.temperature, args.seed, args.top_k)
             print(tokenizer.decode(output))
