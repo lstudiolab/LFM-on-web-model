@@ -5,7 +5,8 @@ __pycache__/
 venv/
 .pytest_cache/
 
-# Training artifacts and user data
+# Training outputs, caches, checkpoints, and explicit user memory
+/artifacts/
 *.npz
 *.metrics.jsonl
 *.tokens.bin
