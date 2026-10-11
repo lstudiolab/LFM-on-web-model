@@ -14,7 +14,7 @@ from prepare_corpus import prepare
 from sora_model import SoraRNN
 from tokenize_corpus import tokenize_file
 from tokenizer import ByteBPETokenizer
-from train_bpe import train_bpe
+from train_bpe import train_bpe, train_bpe_lines
 
 
 class TestPretrainingPipeline(unittest.TestCase):
@@ -61,6 +61,23 @@ class TestPretrainingPipeline(unittest.TestCase):
             _, rebuilt = tokenize_file(source, output, vocab)
             self.assertEqual(rebuilt["cache_sha256"], __import__("hashlib").sha256(output.read_bytes()).hexdigest())
             self.assertEqual(output.stat().st_size, rebuilt["token_count"] * 2)
+
+
+    def test_streaming_tokenization_matches_full_text_encoding(self):
+        text = "Hello  \n  world!\nSora learns. \n\tIndented line 😊\n"
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "train.txt"
+            vocab = root / "tokenizer.json"
+            output = root / "tokens.bin"
+            source.write_text(text, encoding="utf-8", newline="")
+            with source.open("r", encoding="utf-8", newline="") as stream:
+                trained = train_bpe_lines(stream, 300)
+            vocab.write_text(json.dumps(trained), encoding="utf-8")
+            tokenizer = ByteBPETokenizer.load(vocab)
+            _, manifest = tokenize_file(source, output, vocab)
+            actual = np.fromfile(output, dtype=np.dtype(manifest["dtype"])).astype(int).tolist()
+            self.assertEqual(actual, tokenizer.encode(text))
 
     def test_document_split_is_reproducible_and_disjoint(self):
         with tempfile.TemporaryDirectory() as directory:
