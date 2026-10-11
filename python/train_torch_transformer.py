@@ -175,6 +175,7 @@ def main():
         if payload["model_config"] != config:
             parser.error("Checkpoint model configuration differs from this run")
         metadata = payload.get("metadata", {})
+        initial_checkpoint_hash = metadata.get("initial_checkpoint_sha256")
         expected_hashes = {
             "tokenizer_sha256": tokenizer_hash,
             "training_corpus_sha256": training_hash,
@@ -187,6 +188,8 @@ def main():
             "learning_rate": args.learning_rate, "weight_decay": args.weight_decay,
             "batch_size": args.batch_size, "warmup_steps": args.warmup_steps,
             "min_learning_rate_ratio": args.min_learning_rate_ratio,
+            "seed": args.seed,
+            "grad_clip": args.grad_clip,
         }.items():
             if metadata.get(key) != value:
                 parser.error(f"Checkpoint {key} differs from this run")
@@ -288,6 +291,8 @@ def main():
             "batch_size": args.batch_size,
             "warmup_steps": args.warmup_steps,
             "min_learning_rate_ratio": args.min_learning_rate_ratio,
+            "grad_clip": args.grad_clip,
+            "seed": args.seed,
             "device": str(device),
             "training_backend": "pytorch",
         }
