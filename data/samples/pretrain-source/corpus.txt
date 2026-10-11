@@ -1,0 +1,195 @@
+# sample 1
+Sora is the Llab Foundation Model learning experiment.
+A language model learns statistical patterns by predicting the next token.
+Training changes neural network parameters through gradients and optimization.
+The tokenizer turns text into a sequence of token identifiers.
+Memory is stored separately from the neural network's learned weights.
+Validation data should be separated from training examples.
+Ang pangalan ng modelong ito ay Sora.
+Ang modelo ay natututo mula sa mga halimbawa ng teksto.
+Ang pagsasanay ay nagbabago ng mga timbang upang mabawasan ang error.
+Kumusta ka? Sora is learning English and Filipino.
+Text can contain punctuation, numbers such as 123, and Unicode: 😊.
+Save a model checkpoint so that training can resume later.
+
+# sample 2
+Sora is the Llab Foundation Model learning experiment.
+A language model learns statistical patterns by predicting the next token.
+Training changes neural network parameters through gradients and optimization.
+The tokenizer turns text into a sequence of token identifiers.
+Memory is stored separately from the neural network's learned weights.
+Validation data should be separated from training examples.
+Ang pangalan ng modelong ito ay Sora.
+Ang modelo ay natututo mula sa mga halimbawa ng teksto.
+Ang pagsasanay ay nagbabago ng mga timbang upang mabawasan ang error.
+Kumusta ka? Sora is learning English and Filipino.
+Text can contain punctuation, numbers such as 123, and Unicode: 😊.
+Save a model checkpoint so that training can resume later.
+
+# sample 3
+Sora is the Llab Foundation Model learning experiment.
+A language model learns statistical patterns by predicting the next token.
+Training changes neural network parameters through gradients and optimization.
+The tokenizer turns text into a sequence of token identifiers.
+Memory is stored separately from the neural network's learned weights.
+Validation data should be separated from training examples.
+Ang pangalan ng modelong ito ay Sora.
+Ang modelo ay natututo mula sa mga halimbawa ng teksto.
+Ang pagsasanay ay nagbabago ng mga timbang upang mabawasan ang error.
+Kumusta ka? Sora is learning English and Filipino.
+Text can contain punctuation, numbers such as 123, and Unicode: 😊.
+Save a model checkpoint so that training can resume later.
+
+# sample 4
+Sora is the Llab Foundation Model learning experiment.
+A language model learns statistical patterns by predicting the next token.
+Training changes neural network parameters through gradients and optimization.
+The tokenizer turns text into a sequence of token identifiers.
+Memory is stored separately from the neural network's learned weights.
+Validation data should be separated from training examples.
+Ang pangalan ng modelong ito ay Sora.
+Ang modelo ay natututo mula sa mga halimbawa ng teksto.
+Ang pagsasanay ay nagbabago ng mga timbang upang mabawasan ang error.
+Kumusta ka? Sora is learning English and Filipino.
+Text can contain punctuation, numbers such as 123, and Unicode: 😊.
+Save a model checkpoint so that training can resume later.
+
+# sample 5
+Sora is the Llab Foundation Model learning experiment.
+A language model learns statistical patterns by predicting the next token.
+Training changes neural network parameters through gradients and optimization.
+The tokenizer turns text into a sequence of token identifiers.
+Memory is stored separately from the neural network's learned weights.
+Validation data should be separated from training examples.
+Ang pangalan ng modelong ito ay Sora.
+Ang modelo ay natututo mula sa mga halimbawa ng teksto.
+Ang pagsasanay ay nagbabago ng mga timbang upang mabawasan ang error.
+Kumusta ka? Sora is learning English and Filipino.
+Text can contain punctuation, numbers such as 123, and Unicode: 😊.
+Save a model checkpoint so that training can resume later.
+
+# sample 6
+Sora is the Llab Foundation Model learning experiment.
+A language model learns statistical patterns by predicting the next token.
+Training changes neural network parameters through gradients and optimization.
+The tokenizer turns text into a sequence of token identifiers.
+Memory is stored separately from the neural network's learned weights.
+Validation data should be separated from training examples.
+Ang pangalan ng modelong ito ay Sora.
+Ang modelo ay natututo mula sa mga halimbawa ng teksto.
+Ang pagsasanay ay nagbabago ng mga timbang upang mabawasan ang error.
+Kumusta ka? Sora is learning English and Filipino.
+Text can contain punctuation, numbers such as 123, and Unicode: 😊.
+Save a model checkpoint so that training can resume later.
+
+# sample 7
+Sora is the Llab Foundation Model learning experiment.
+A language model learns statistical patterns by predicting the next token.
+Training changes neural network parameters through gradients and optimization.
+The tokenizer turns text into a sequence of token identifiers.
+Memory is stored separately from the neural network's learned weights.
+Validation data should be separated from training examples.
+Ang pangalan ng modelong ito ay Sora.
+Ang modelo ay natututo mula sa mga halimbawa ng teksto.
+Ang pagsasanay ay nagbabago ng mga timbang upang mabawasan ang error.
+Kumusta ka? Sora is learning English and Filipino.
+Text can contain punctuation, numbers such as 123, and Unicode: 😊.
+Save a model checkpoint so that training can resume later.
+
+# sample 8
+Sora is the Llab Foundation Model learning experiment.
+A language model learns statistical patterns by predicting the next token.
+Training changes neural network parameters through gradients and optimization.
+The tokenizer turns text into a sequence of token identifiers.
+Memory is stored separately from the neural network's learned weights.
+Validation data should be separated from training examples.
+Ang pangalan ng modelong ito ay Sora.
+Ang modelo ay natututo mula sa mga halimbawa ng teksto.
+Ang pagsasanay ay nagbabago ng mga timbang upang mabawasan ang error.
+Kumusta ka? Sora is learning English and Filipino.
+Text can contain punctuation, numbers such as 123, and Unicode: 😊.
+Save a model checkpoint so that training can resume later.
+
+# sample 9
+Sora is the Llab Foundation Model learning experiment.
+A language model learns statistical patterns by predicting the next token.
+Training changes neural network parameters through gradients and optimization.
+The tokenizer turns text into a sequence of token identifiers.
+Memory is stored separately from the neural network's learned weights.
+Validation data should be separated from training examples.
+Ang pangalan ng modelong ito ay Sora.
+Ang modelo ay natututo mula sa mga halimbawa ng teksto.
+Ang pagsasanay ay nagbabago ng mga timbang upang mabawasan ang error.
+Kumusta ka? Sora is learning English and Filipino.
+Text can contain punctuation, numbers such as 123, and Unicode: 😊.
+Save a model checkpoint so that training can resume later.
+
+# sample 10
+Sora is the Llab Foundation Model learning experiment.
+A language model learns statistical patterns by predicting the next token.
+Training changes neural network parameters through gradients and optimization.
+The tokenizer turns text into a sequence of token identifiers.
+Memory is stored separately from the neural network's learned weights.
+Validation data should be separated from training examples.
+Ang pangalan ng modelong ito ay Sora.
+Ang modelo ay natututo mula sa mga halimbawa ng teksto.
+Ang pagsasanay ay nagbabago ng mga timbang upang mabawasan ang error.
+Kumusta ka? Sora is learning English and Filipino.
+Text can contain punctuation, numbers such as 123, and Unicode: 😊.
+Save a model checkpoint so that training can resume later.
+
+# sample 11
+Sora is the Llab Foundation Model learning experiment.
+A language model learns statistical patterns by predicting the next token.
+Training changes neural network parameters through gradients and optimization.
+The tokenizer turns text into a sequence of token identifiers.
+Memory is stored separately from the neural network's learned weights.
+Validation data should be separated from training examples.
+Ang pangalan ng modelong ito ay Sora.
+Ang modelo ay natututo mula sa mga halimbawa ng teksto.
+Ang pagsasanay ay nagbabago ng mga timbang upang mabawasan ang error.
+Kumusta ka? Sora is learning English and Filipino.
+Text can contain punctuation, numbers such as 123, and Unicode: 😊.
+Save a model checkpoint so that training can resume later.
+
+# sample 12
+Sora is the Llab Foundation Model learning experiment.
+A language model learns statistical patterns by predicting the next token.
+Training changes neural network parameters through gradients and optimization.
+The tokenizer turns text into a sequence of token identifiers.
+Memory is stored separately from the neural network's learned weights.
+Validation data should be separated from training examples.
+Ang pangalan ng modelong ito ay Sora.
+Ang modelo ay natututo mula sa mga halimbawa ng teksto.
+Ang pagsasanay ay nagbabago ng mga timbang upang mabawasan ang error.
+Kumusta ka? Sora is learning English and Filipino.
+Text can contain punctuation, numbers such as 123, and Unicode: 😊.
+Save a model checkpoint so that training can resume later.
+
+# sample 13
+Sora is the Llab Foundation Model learning experiment.
+A language model learns statistical patterns by predicting the next token.
+Training changes neural network parameters through gradients and optimization.
+The tokenizer turns text into a sequence of token identifiers.
+Memory is stored separately from the neural network's learned weights.
+Validation data should be separated from training examples.
+Ang pangalan ng modelong ito ay Sora.
+Ang modelo ay natututo mula sa mga halimbawa ng teksto.
+Ang pagsasanay ay nagbabago ng mga timbang upang mabawasan ang error.
+Kumusta ka? Sora is learning English and Filipino.
+Text can contain punctuation, numbers such as 123, and Unicode: 😊.
+Save a model checkpoint so that training can resume later.
+
+# sample 14
+Sora is the Llab Foundation Model learning experiment.
+A language model learns statistical patterns by predicting the next token.
+Training changes neural network parameters through gradients and optimization.
+The tokenizer turns text into a sequence of token identifiers.
+Memory is stored separately from the neural network's learned weights.
+Validation data should be separated from training examples.
+Ang pangalan ng modelong ito ay Sora.
+Ang modelo ay natututo mula sa mga halimbawa ng teksto.
+Ang pagsasanay ay nagbabago ng mga timbang upang mabawasan ang error.
+Kumusta ka? Sora is learning English and Filipino.
+Text can contain punctuation, numbers such as 123, and Unicode: 😊.
+Save a model checkpoint so that training can resume later.
