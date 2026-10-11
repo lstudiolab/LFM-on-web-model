@@ -19,21 +19,22 @@ jobs:
         run: python -m pip install -r requirements.txt
       - name: Run unit tests
         run: python -m unittest discover -s tests -v
-      - name: Run complete training pipeline from one command
+      - name: Run corpus-to-checkpoint pipeline
         run: >-
-          python python/bootstrap_training.py
-          --corpus data/samples/train.txt
-          --validation-corpus data/samples/validation.txt
-          --vocab-size 320 --steps 12 --hidden-size 8 --seq-len 16
-          --checkpoint artifacts/smoke-checkpoint.npz
-          --tokenizer-path artifacts/sora-tokenizer.json
-          --eval-every 6 --eval-batches 2
-          --generate-tokens 16 --token-cache-dir artifacts/cache
+          python python/pretrain.py
+          --input data/samples/pretrain-source
+          --run-dir artifacts/ci-smoke
+          --steps 12 --hidden-size 8 --seq-len 16
+          --vocab-size 320 --validation-fraction 0.2
+          --min-document-chars 1 --eval-every 6
       - name: Compile C++ tokenizer utility
         run: c++ -std=c++17 -O2 -Wall -Wextra -pedantic cpp/main.cpp cpp/tokenizer.cpp -o artifacts/sora-tokenizer
       - name: Verify C++ tokenizer loads Python vocabulary
-        run: ./artifacts/sora-tokenizer artifacts/sora-tokenizer.json "Sora mahal kita 😊" | grep -F "Decoded: Sora mahal kita 😊"
-      - name: Verify checkpoint and metrics
+        run: ./artifacts/sora-tokenizer artifacts/ci-smoke/tokenizer.json "Sora mahal kita 😊" | grep -F "Decoded: Sora mahal kita 😊"
+      - name: Verify pretraining artifacts
         run: |
-          test -s artifacts/smoke-checkpoint.npz
-          test -s artifacts/smoke-checkpoint.metrics.jsonl
+          test -s artifacts/ci-smoke/corpus/manifest.json
+          test -s artifacts/ci-smoke/tokenizer.json
+          test -s artifacts/ci-smoke/run_config.json
+          test -s artifacts/ci-smoke/sora-checkpoint.npz
+          test -s artifacts/ci-smoke/sora-checkpoint.metrics.jsonl
