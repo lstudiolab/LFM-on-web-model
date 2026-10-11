@@ -165,6 +165,28 @@ class TestPretrainingPipeline(unittest.TestCase):
             self.assertEqual(resumed.returncode, 0, resumed.stdout + "\n" + resumed.stderr)
             self.assertEqual(SoraRNN.load(checkpoint).step, 3)
 
+    def test_checked_in_smoke_corpus_can_pretrain(self):
+        source = ROOT / "data" / "samples" / "pretrain-source"
+        if not source.is_dir():
+            self.skipTest("Checked-in smoke corpus is not present")
+        with tempfile.TemporaryDirectory() as directory:
+            run_dir = Path(directory) / "ci-smoke"
+            command = [
+                sys.executable, str(ROOT / "python" / "pretrain.py"),
+                "--input", str(source),
+                "--run-dir", str(run_dir),
+                "--steps", "12", "--hidden-size", "8", "--seq-len", "16",
+                "--vocab-size", "320", "--validation-fraction", "0.2",
+                "--min-document-chars", "1", "--eval-every", "6",
+            ]
+            completed = subprocess.run(command, capture_output=True, text=True, timeout=45)
+            self.assertEqual(completed.returncode, 0, completed.stdout + "\n" + completed.stderr)
+            self.assertTrue((run_dir / "corpus" / "manifest.json").is_file())
+            self.assertTrue((run_dir / "tokenizer.json").is_file())
+            self.assertTrue((run_dir / "run_config.json").is_file())
+            self.assertTrue((run_dir / "sora-checkpoint.npz").is_file())
+            self.assertTrue((run_dir / "sora-checkpoint.metrics.jsonl").is_file())
+
     def test_one_command_pretraining_pipeline(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
