@@ -4,12 +4,12 @@
 
 This repository implements a small language model from random initialization. It is intended to make the training loop inspectable and repeatable, not to claim that a tiny model is already a capable assistant.
 
-> **Current status:** the corpus-to-tokenizer-to-training workflow is implemented, and regression tests plus GitHub Actions are configured. The default pretraining path is a compact causal Transformer with manually implemented NumPy forward/backward math; the older RNN remains available as a baseline. This is still experimental, CPU-oriented, and not production-scale. No full pretraining run is claimed.
+> **Current status:** the NumPy Transformer remains an inspectable baseline, and an optional PyTorch Transformer trainer now supports batched training on CPU/CUDA/MPS with randomly initialized weights. A country-language policy, Wikimedia starter-data downloader, dialogue-tuning formatter, and per-language held-out evaluation path are also included. No full multilingual pretraining run has been completed; these tools prepare and train a model only when you run them with real data and suitable compute.
 
 ## What is implemented
 
 - **Training from scratch:** the default is a causal Transformer with learned token/position embeddings, multi-head masked self-attention, residual connections, layer normalization, a feed-forward block, and tied input/output embeddings. All parameters begin from random initialization. `python/train.py` retains the RNN baseline.
-- **Training math:** the Transformer manually implements causal attention, softmax cross-entropy, layer-normalization gradients, feed-forward backpropagation, gradient clipping, and Adam in `python/sora_transformer.py`; the RNN's BPTT remains in `python/sora_model.py`. NumPy provides array operations, not an autograd or neural-network training framework.
+- **Training backends:** `python/train_transformer.py` is the small manual-gradient NumPy trainer. `python/train_torch_transformer.py` is the recommended scalable path: it uses batched PyTorch ops, AdamW, warmup/cosine learning-rate scheduling, gradient clipping, checkpoint resume, and initialization from an earlier Sora checkpoint for a new training stage. Both start model weights randomly when no initialization checkpoint is supplied.
 - **Raw bytes or BPE:** UTF-8 bytes work out of the box. The optional byte-level BPE tokenizer reduces sequence length for frequent text pieces.
 - **Tokenizer consistency:** python/train_bpe.py learns the vocabulary; python/tokenizer.py encodes and decodes with it. The training and generation paths require a matching tokenizer fingerprint for BPE checkpoints.
 - **Corpus preparation:** python/prepare_corpus.py streams text by paragraphs, normalizes Unicode, deduplicates documents using a temporary SQLite index, then creates a deterministic document-level train/validation split and a hash manifest.
@@ -168,25 +168,106 @@ c++ -std=c++17 -O2 cpp/main.cpp cpp/tokenizer.cpp -o sora-tokenizer
 
 Unicode word-boundary handling in the demonstration C++ utility is intentionally lightweight; Python's tokenizer is the reference for training and generation.
 
-## Multilingual training by country-primary language
+## Multilingual training and conversational tuning
 
-The multilingual preparation path is in `python/prepare_multilingual_corpus.py`, with a starter policy at `configs/country_primary_languages.json`. The Philippines entry selects **Tagalog** only, as requested. The policy currently covers only a starter set of countries; it is **not yet a complete worldwide country/language mapping**.
+The country-language policy contains 197 country/territory entries and 110 distinct language codes. The Philippines selects **Tagalog (`tl`) only**. The policy deliberately chooses one language per entry, even though many countries are multilingual; some choices need local review, and not all selected languages have a Wikipedia edition. Do not treat it as an authoritative linguistic census.
 
-Organize reviewed, licensed source text by language code under `data/multilingual/raw/<language-code>/`, for example `data/multilingual/raw/tl/` for Tagalog. Then run:
+### 1. Install the scalable training backend
 
-```bash
-python python/prepare_multilingual_corpus.py
-```
+~~~bash
+python -m pip install -r requirements-torch.txt
+~~~
 
-Inspect `data/multilingual/selected/manifest.json` for missing languages, source hashes, and per-language character counts. The builder does not download or invent training examples and does not automatically verify that a file is in its labelled language. It reports missing source data rather than pretending that language is covered.
+The PyTorch model is initialized from random weights. PyTorch provides optimized tensor operations; it does not provide a pretrained language model here. Use an appropriate PyTorch build for the hardware you have. The trainer selects CUDA when available, then Apple MPS, then CPU.
 
-After completing and reviewing the policy and adding enough data for every selected language, train from the combined language-specific files:
+### 2. Get starter text and prepare the language corpora
 
-```bash
-python python/pretrain.py --input data/multilingual/selected --run-dir runs/sora-multilingual --steps 10000 --hidden-size 128 --heads 4 --layers 2 --seq-len 128 --vocab-size 4096
-```
+~~~bash
+python python/download_wikipedia_corpus.py --pages-per-language 1000
+python python/prepare_multilingual_corpus.py --max-chars-per-language 5000000
+~~~
 
-This command has **not** been run here: no real multilingual corpus or training compute was supplied. The existing NumPy Transformer is an experimental, CPU-oriented implementation; meaningful multilingual capability requires substantial clean text, a complete and reviewed language policy, adequate compute, and held-out evaluation for each language. Many countries use multiple languages, so the one-language-per-country rule is an explicit simplification, not a claim that other languages are not used.
+The downloader fetches **article introductions**, not complete Wikipedia articles. It saves article URLs and license metadata beside each language's text. The Wikipedia API is documented at [MediaWiki API:Random](https://www.mediawiki.org/wiki/API:Random) and [API:Extracts](https://www.mediawiki.org/wiki/Extension:TextExtracts). Most Wikimedia text is offered under CC BY-SA 4.0; review the [license terms](https://creativecommons.org/licenses/by-sa/4.0/) and Wikimedia's [attribution guidance](https://attribution.wikimedia.org/) before redistributing training material or model artifacts.
+
+This is only a bootstrap dataset, not enough to claim fluency. Some language editions may not exist or may return no usable pages. The scripts report missing languages in `data/multilingual/raw/download-manifest.json` and `data/multilingual/selected/manifest.json`. Add larger, reviewed, appropriately licensed corpora under `data/multilingual/raw/<language-code>/` before serious training. Avoid private messages, credentials, and sensitive data.
+
+### 3. Prepare the tokenizer and language-level split
+
+~~~bash
+python python/pretrain.py \
+  --input data/multilingual/selected \
+  --run-dir runs/sora-multilingual \
+  --prepare-only \
+  --hidden-size 256 --heads 8 --layers 6 --seq-len 256 \
+  --vocab-size 2048 --tokenizer-max-lines 200000
+~~~
+
+This prepares training and validation splits, learns the BPE tokenizer from a bounded deterministic sample of training lines, and writes token caches/configuration. It does **not** train the model because `--prepare-only` is set. Inspect `runs/sora-multilingual/corpus/manifest.json`, `tokenizer.json`, and `run_config.json` before continuing.
+
+### 4. Actually pretrain Sora from scratch
+
+~~~bash
+python python/train_torch_transformer.py \
+  runs/sora-multilingual/corpus/train.txt \
+  --validation-corpus runs/sora-multilingual/corpus/validation.txt \
+  --tokenizer runs/sora-multilingual/tokenizer.json \
+  --checkpoint runs/sora-multilingual/sora-torch.pt \
+  --steps 100000 --batch-size 8 \
+  --d-model 256 --heads 8 --layers 6 --seq-len 256 \
+  --device auto
+~~~
+
+The trainer saves a latest checkpoint, a best-validation checkpoint, and a JSONL metrics log. The number of updates is an example starting budget, not a guarantee of quality. Monitor validation loss, resource use, and per-language balance; resume with the same checkpoint and data plus `--resume`. A larger reviewed corpus and more compute are likely required for good multilingual coverage.
+
+### 5. Teach it to respond conversationally
+
+Next-token pretraining on encyclopedia text alone does not teach assistant behavior. Provide a separate JSONL file with **native-speaker-reviewed or otherwise high-quality licensed dialogues**, one record per line:
+
+~~~json
+{"language":"tl","user":"Kumusta ka?","assistant":"Mabuti ako, salamat! Ikaw?","source":"your-dataset-name","license":"CC0"}
+~~~
+
+Each record must include `language`, `user`, `assistant`, `source`, and `license`. Use data you have rights to train on, and review grammar and naturalness. Keep training, validation, and final test examples separate.
+
+~~~bash
+python python/prepare_chat_corpus.py data/multilingual/dialogue-train.jsonl \
+  --output-dir data/multilingual/chat-train
+python python/prepare_chat_corpus.py data/multilingual/dialogue-validation.jsonl \
+  --output-dir data/multilingual/chat-validation
+
+python python/train_torch_transformer.py \
+  data/multilingual/chat-train/chat-tuning.txt \
+  --validation-corpus data/multilingual/chat-validation/chat-tuning.txt \
+  --tokenizer runs/sora-multilingual/tokenizer.json \
+  --initialize-from runs/sora-multilingual/sora-torch.best.pt \
+  --checkpoint runs/sora-chat/sora-chat.pt \
+  --steps 20000 --batch-size 8 \
+  --d-model 256 --heads 8 --layers 6 --seq-len 256 \
+  --learning-rate 0.0001 --device auto
+~~~
+
+The tuning checkpoint must use the same tokenizer and model configuration as the base checkpoint. This stage resets optimizer state and starts a new run from the base **weights**; it does not replace the base checkpoint. Generation should use the conversation markers learned from the dialogue corpus, for example:
+
+~~~bash
+python python/generate_torch.py runs/sora-chat/sora-chat.best.pt \
+  --tokenizer runs/sora-multilingual/tokenizer.json \
+  --prompt "<|system|>You are Sora. Answer naturally in Tagalog.\n<|user|>Kumusta ka?\n<|assistant|>" \
+  --tokens 120 --device auto
+~~~
+
+### 6. Evaluate each language separately
+
+Place **held-out test text never used for training or tuning** at `data/multilingual/test/<language-code>.txt`, then run:
+
+~~~bash
+python python/evaluate_multilingual.py runs/sora-chat/sora-chat.best.pt \
+  --backend torch \
+  --test-dir data/multilingual/test \
+  --tokenizer runs/sora-multilingual/tokenizer.json \
+  --output runs/sora-chat/language-evaluation.json
+~~~
+
+Missing test files are reported rather than counted as successful languages. Perplexity measures next-token prediction only. To establish that Sora speaks a language well, native speakers must also review conversations for grammar, naturalness, understanding, and appropriate responses.
 
 ## What this does—and does not—mean
 
