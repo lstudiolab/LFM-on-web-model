@@ -1,0 +1,36 @@
+name: LFM training smoke test
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  train-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install dependencies
+        run: python -m pip install -r requirements.txt
+      - name: Run unit tests
+        run: python -m unittest discover -s tests -v
+      - name: Train BPE vocabulary
+        run: python python/train_bpe.py data/samples/train.txt artifacts/sora-tokenizer.json --vocab-size 320
+      - name: Train from random initialization
+        run: >-
+          python python/train.py data/samples/train.txt
+          --validation-corpus data/samples/validation.txt
+          --tokenizer artifacts/sora-tokenizer.json
+          --steps 12 --hidden-size 8 --seq-len 16
+          --checkpoint artifacts/smoke-checkpoint.npz
+          --eval-every 6 --eval-batches 2
+          --generate-tokens 16 --token-cache-dir artifacts/cache
+      - name: Verify checkpoint and metrics
+        run: |
+          test -s artifacts/smoke-checkpoint.npz
+          test -s artifacts/smoke-checkpoint.metrics.jsonl
