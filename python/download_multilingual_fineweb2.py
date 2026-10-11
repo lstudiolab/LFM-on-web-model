@@ -35,7 +35,7 @@ def atomic_json(path, value):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output-dir", type=Path, default=Path("data/multilingual/fineweb2"))
-    parser.add_argument("--max-docs-per-config", type=int, default=100, help="0 streams each subset without a document cap")
+    parser.add_argument("--max-docs-per-config", type=int, default=100, help="bounded documents per language/script subset; full subsets are intentionally not downloaded")
     parser.add_argument("--max-configs", type=int, default=0, help="0 means all listed non-English configs")
     parser.add_argument("--english-docs", type=int, default=5000, help="English docs from FineWeb sample-10BT; 0 disables")
     parser.add_argument("--min-chars", type=int, default=80)
@@ -43,8 +43,8 @@ def main():
     parser.add_argument("--seed", type=int, default=2026)
     parser.add_argument("--retry-failed", action="store_true")
     args = parser.parse_args()
-    if min(args.max_docs_per_config, args.max_configs, args.english_docs) < 0:
-        parser.error("document and config limits cannot be negative")
+    if args.max_docs_per_config < 1 or args.max_configs < 0 or args.english_docs < 0:
+        parser.error("max-docs-per-config must be at least 1; config and English limits cannot be negative")
     if args.min_chars < 1 or args.shuffle_buffer < 0:
         parser.error("min-chars must be positive and shuffle-buffer cannot be negative")
     try:
