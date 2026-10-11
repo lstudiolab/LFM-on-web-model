@@ -11,7 +11,8 @@ from evaluate import evaluate_checkpoint
 from prepare_multilingual_corpus import load_policy
 
 
-def evaluate_languages(checkpoint: Path, test_dir: Path, policy: Path, tokenizer_path=None):
+def evaluate_languages(checkpoint: Path, test_dir: Path, policy: Path, tokenizer_path=None,
+                       backend: str = "numpy", device: str = "auto"):
     if not checkpoint.is_file():
         raise FileNotFoundError(f"Checkpoint not found: {checkpoint}")
     if not test_dir.is_dir():
@@ -25,7 +26,11 @@ def evaluate_languages(checkpoint: Path, test_dir: Path, policy: Path, tokenizer
             reports[language] = {"status": "missing-test-corpus"}
             continue
         try:
-            result = evaluate_checkpoint(checkpoint, test_file, tokenizer_path)
+            if backend == "torch":
+                from evaluate_torch import evaluate_torch_checkpoint
+                result = evaluate_torch_checkpoint(checkpoint, test_file, tokenizer_path, device)
+            else:
+                result = evaluate_checkpoint(checkpoint, test_file, tokenizer_path)
             result["status"] = "evaluated"
             result["language"] = language
             reports[language] = result
@@ -35,6 +40,7 @@ def evaluate_languages(checkpoint: Path, test_dir: Path, policy: Path, tokenizer
     return {
         "format": "lfm-multilingual-evaluation-v1",
         "checkpoint": str(checkpoint),
+        "backend": backend,
         "policy": str(policy),
         "test_directory": str(test_dir),
         "languages_in_policy": len(languages),
@@ -52,11 +58,13 @@ def main():
     parser.add_argument("--test-dir", type=Path, default=Path("data/multilingual/test"))
     parser.add_argument("--policy", type=Path, default=Path("configs/country_primary_languages.json"))
     parser.add_argument("--tokenizer", type=Path, help="exact BPE tokenizer used by this checkpoint")
-    parser.add_argument("--output", type=Path, default=Path("runs/sora-multilingual/language-evaluation.json")
-)
+    parser.add_argument("--backend", choices=("numpy", "torch"), default="numpy")
+    parser.add_argument("--device", default="auto", help="used only with --backend torch")
+    parser.add_argument("--output", type=Path, default=Path("runs/sora-multilingual/language-evaluation.json"))
     args = parser.parse_args()
     try:
-        report = evaluate_languages(args.checkpoint, args.test_dir, args.policy, args.tokenizer)
+        report = evaluate_languages(args.checkpoint, args.test_dir, args.policy, args.tokenizer,
+                                    args.backend, args.device)
     except (OSError, UnicodeError, ValueError, json.JSONDecodeError) as exc:
         parser.error(str(exc))
     rendered = json.dumps(report, ensure_ascii=False, indent=2)
